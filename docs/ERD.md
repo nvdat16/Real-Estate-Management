@@ -41,6 +41,7 @@ erDiagram
     contracts ||--o{ invoices : billed_by
     files o|--o{ invoices : renders_pdf
     contracts ||--o| commissions : earns
+    contract_versions ||--o| commissions : prices
     agents ||--o{ commissions : receives
 
     users {
@@ -109,6 +110,7 @@ erDiagram
         uuid id PK
         uuid contract_id FK
         int version_no
+        string contract_type
         jsonb content_snapshot
         string content_hash
         decimal total_amount
@@ -150,6 +152,7 @@ erDiagram
     commissions {
         uuid id PK
         uuid contract_id FK,UK
+        uuid contract_version_id FK
         uuid agent_id FK
         decimal base_amount
         decimal rate_percent
@@ -331,7 +334,7 @@ Các trường dưới đây bổ sung hoặc làm rõ sơ đồ. Chuỗi mã/tr
 
 | Bảng | Thuộc tính và ý nghĩa |
 | --- | --- |
-| `users` | Email chuẩn hóa chữ thường và trim trước khi lưu; `phone` nullable; `status`: `active/locked`; `auth_version` tăng khi reset mật khẩu, khóa tài khoản hoặc đổi quyền để thu hồi JWT cũ khi API kiểm tra. |
+| `users` | Email chuẩn hóa chữ thường và trim trước khi lưu; `phone` nullable; `status`: `active/locked`; `auth_version` tăng khi đăng xuất, reset mật khẩu, khóa tài khoản hoặc đổi quyền để thu hồi JWT cũ khi API kiểm tra; `locked_at` nullable ghi thời điểm khóa gần nhất. |
 | `roles`, `permissions` | Seed role `admin/agent/customer`; permission dùng mã như `listing.approve`, `contract.sign_representative`, `commission.pay`. Scope bản ghi được kiểm tra tại service, không suy ra chỉ từ role. |
 | `user_roles`, `role_permissions` | PK ghép như sơ đồ; `created_at`; một tài khoản có thể có nhiều role nhưng chỉ có một hồ sơ mỗi loại. Role customer/agent phải phù hợp hồ sơ khi cấp quyền trong giao dịch. |
 | `password_reset_tokens` | Chỉ lưu hash token có độ ngẫu nhiên cao; `used_at` nullable; hết hạn/đã dùng bị từ chối. Token mới thu hồi token còn hiệu lực trước đó. |
@@ -340,15 +343,15 @@ Các trường dưới đây bổ sung hoặc làm rõ sơ đồ. Chuỗi mã/tr
 | `projects` | Bổ sung `description` nullable; `status`: `active/inactive`; địa bàn lưu code để lọc, địa chỉ lưu text. Danh mục địa bàn được cấu hình/seed, không hardcode một hệ thống mã trong PRD. |
 | `properties` | Bổ sung `floor` nullable, `description` nullable; `status`: `available/reserved/sold/rented`; vị trí kế thừa dự án; `area_m2 > 0`, `bedrooms >= 0`. |
 | `listings` | Bổ sung `description`, `currency='VND'`, `reviewed_at` nullable, `rejection_reason` nullable; `reviewed_by` nullable trước khi duyệt; `listing_type`: `sale/rent`; `price_unit`: `total/month`; trạng thái theo PRD. |
-| `contracts` | Bổ sung `cancelled_at`, `cancelled_by` (FK users), `cancellation_reason`, đều nullable trước hủy; `signed_at` nullable đến khi ký đủ; `contract_type`: `sale/rent`; `created_by` FK users. Các FK nghiệp vụ và loại giao dịch cố định sau khi tạo. |
-| `contract_versions` | Bổ sung `created_by` FK users, `currency='VND'`; `content_snapshot` chứa địa chỉ/mã căn, mô tả tin, các bên, điều khoản, giá/cơ sở hoa hồng và thông tin đơn vị đại diện tại thời điểm tạo; `start_date/end_date` nullable với bán, bắt buộc với thuê; `pdf_file_id/frozen_at` nullable trước xuất PDF/gửi ký. |
+| `contracts` | Bổ sung `cancelled_at`, `cancelled_by` (FK users), `cancellation_reason`, đều nullable trước hủy; `status`: `draft/pending_signatures/signed/cancelled`; `signed_at` nullable đến khi ký đủ; `contract_type`: `sale/rent`; `created_by` FK users. Các FK nghiệp vụ và loại giao dịch cố định sau khi tạo. |
+| `contract_versions` | Bổ sung `created_by` FK users, `currency='VND'`, `contract_type` sao chép từ `contracts` lúc tạo phiên bản để snapshot tự đủ và CHECK được quy tắc ngày thuê (bằng nhau do FK ghép ở mục 5.1, bất biến sau khi tạo); `content_snapshot` chứa địa chỉ/mã căn, mô tả tin, các bên, điều khoản, giá/cơ sở hoa hồng và thông tin đơn vị đại diện tại thời điểm tạo; `start_date/end_date` nullable với bán, bắt buộc với thuê; `pdf_file_id/frozen_at` nullable trước xuất PDF/gửi ký. |
 | `contract_parties` | `party_role`: `customer/representative`; bắt buộc đúng hai bên cho mỗi phiên bản theo A-02. `display_name_snapshot` lưu tên tại thời điểm lập. `user_id` của bên khách phải trùng tài khoản của `contracts.customer_id`; bên đại diện phải có quyền ký đại diện. |
 | `signing_challenges` | `consumed_at/revoked_at` nullable; `attempt_count` mặc định 0, giới hạn theo PRD. OTP dùng HMAC với khóa bí mật hoặc cơ chế băm có bảo vệ phù hợp, không dùng hash trần dễ vét cạn cho OTP ngắn; hash ràng buộc challenge/bên ký. |
 | `contract_signatures` | `method='email_otp'` cho demo; `evidence` chỉ chứa dữ liệu cần thiết như request ID, IP/user-agent nếu có chính sách lưu; không chứa OTP. `kyc_verification_id` nullable với đại diện, bắt buộc với khách. |
-| `invoices` | Bổ sung `created_by` FK users, `issued_at`, `paid_by` FK users, `voided_at`, `voided_by` FK users, `void_reason`, `content_snapshot` JSONB và `currency='VND'`; snapshot đóng băng lúc phát hành. `due_date`, `pdf_file_id`, các thời điểm/người xử lý/tham chiếu nullable trước bước tương ứng. |
-| `commissions` | Bổ sung `approved_by`, `paid_by` (FK users), `approved_at`, `cancelled_at`, `cancelled_by` (FK users), `cancellation_reason`; các trường duyệt/chi/hủy nullable trước xử lý; `payment_reference/paid_at` nullable trước chi. Số tiền/cơ sở/tỷ lệ là snapshot từ phiên bản đã ký. |
+| `invoices` | Bổ sung `created_by` FK users, `status`: `draft/issued/paid/void`, `issued_at`, `paid_by` FK users, `voided_at`, `voided_by` FK users, `void_reason`, `content_snapshot` JSONB và `currency='VND'`; snapshot đóng băng lúc phát hành. `due_date`, `pdf_file_id`, các thời điểm/người xử lý/tham chiếu nullable trước bước tương ứng. |
+| `commissions` | Bổ sung `contract_version_id` FK contract_versions trỏ đúng phiên bản đã ký làm nguồn snapshot, `status`: `pending/approved/paid/cancelled`, `approved_by`, `paid_by` (FK users), `approved_at`, `cancelled_at`, `cancelled_by` (FK users), `cancellation_reason`; các trường duyệt/chi/hủy nullable trước xử lý; `payment_reference/paid_at` nullable trước chi. Số tiền/cơ sở/tỷ lệ là snapshot từ phiên bản đã ký. |
 | `kyc_verifications` | Mỗi lần gửi là một bản ghi; `provider_request_id` nullable trước gửi thành công; `evidence_file_id`, `reviewed_by`, `verified_at`, `expires_at`, `reason` nullable. `reviewed_by` dùng cho thao tác quản trị/demo; callback nhà cung cấp được audit dưới actor hệ thống. Trạng thái `pending/verified/rejected/failed`. |
-| `files` | `uploaded_by` là người yêu cầu upload hoặc người khởi tạo xuất tài liệu; worker ghi file thay mặt người đó. `purpose`: `contract_pdf/invoice_pdf/report/import/kyc`; `status`: `pending/ready/failed`; `storage_key` là khóa kho tệp riêng tư, không phải URL công khai. `size_bytes/sha256` nullable trước `ready`. |
+| `files` | `uploaded_by` là người yêu cầu upload hoặc người khởi tạo xuất tài liệu; worker ghi file thay mặt người đó. `purpose`: `contract_pdf/invoice_pdf/report/data_export/import/kyc`; `report` cho báo cáo/chứng từ PDF, `data_export` cho tệp Excel/CSV do `export_data` sinh; `status`: `pending/ready/failed`; `storage_key` là khóa kho tệp riêng tư, không phải URL công khai. `size_bytes/sha256` nullable trước `ready`. |
 | `audit_logs` | `actor_user_id` nullable cho worker/callback; bổ sung `actor_type` (`user/system`); `entity_type/entity_id` là tham chiếu đa hình, **không phải FK**. `change_summary` lưu thay đổi đã loại bí mật và dữ liệu KYC thô; chỉ ghi thêm. |
 | `jobs` | `requested_by` nullable cho tác vụ hệ thống; `input_file_id/output_file_id/error_code` nullable; bổ sung `started_at/finished_at` nullable, `max_attempts`; `job_type`: `send_email/generate_contract_pdf/generate_invoice_pdf/export_report/import_properties/import_projects/export_data`; payload chỉ chứa tham chiếu và bộ lọc cần thiết. |
 | `outbox_events` | Bổ sung `locked_until` nullable để giữ lease khi dispatcher nhận sự kiện; `published_at` nullable trước publish; `status`: `pending/publishing/published`; sự kiện lỗi publish quay lại pending và tăng attempts. |
@@ -364,25 +367,35 @@ Các trường dưới đây bổ sung hoặc làm rõ sơ đồ. Chuỗi mã/tr
 | `customers`, `agents` | UNIQUE `user_id` và mã hồ sơ; một tài khoản có thể có cả hai hồ sơ nhưng không được ký hai phía trên cùng hợp đồng. |
 | `properties` | UNIQUE `(project_id, unit_code)`; mã căn không tái sử dụng sau xóa mềm. |
 | `listings` | CHECK giá > 0; CHECK cặp `sale/total` hoặc `rent/month`; UNIQUE INDEX trên `property_id` WHERE `status IN ('pending','approved') AND deleted_at IS NULL`. |
-| `contracts` | UNIQUE `contract_no`; UNIQUE INDEX trên `property_id` WHERE `status IN ('pending_signatures','signed') AND deleted_at IS NULL`; nhiều bản nháp được phép, chỉ một bản giữ căn. |
-| `contract_versions` | UNIQUE `(contract_id, version_no)`; CHECK version_no > 0, total_amount > 0, commission_base >= 0, commission_rate BETWEEN 0 AND 100; nếu có cả ngày thì end_date > start_date. |
+| `contracts` | UNIQUE `contract_no`; UNIQUE INDEX trên `property_id` WHERE `status IN ('pending_signatures','signed') AND deleted_at IS NULL`; nhiều bản nháp được phép, chỉ một bản giữ căn. UNIQUE `(id, agent_id)` và `(id, contract_type)` chỉ để làm đích cho FK ghép ở `commissions`/`contract_versions`; hai bộ này bất biến sau khi tạo hợp đồng. |
+| `contract_versions` | UNIQUE `(contract_id, version_no)` và `(contract_id, id)` làm đích cho FK ghép của `commissions`; FK ghép `(contract_id, contract_type)` tới `contracts(id, contract_type)` thay cho FK đơn `contract_id`, bảo đảm loại giao dịch của phiên bản bằng loại của hợp đồng; CHECK version_no > 0, total_amount > 0, commission_base >= 0, commission_rate BETWEEN 0 AND 100; CHECK `contract_type = 'rent'` thì start_date và end_date NOT NULL; nếu có cả ngày thì end_date > start_date. |
 | `contract_parties` | UNIQUE `(contract_version_id, party_role)` và `(contract_version_id, user_id)`; giới hạn enum role. Việc có đủ đúng hai bên kiểm tra khi gửi ký. |
-| `signing_challenges` | CHECK attempt_count >= 0 và <= giới hạn MVP; UNIQUE INDEX `party_id` WHERE `consumed_at IS NULL AND revoked_at IS NULL`. Gửi lại phải revoke challenge cũ, kể cả đã hết hạn; không dùng `now()` trong predicate index. |
-| `contract_signatures` | UNIQUE `party_id`, UNIQUE `challenge_id`; một bên chỉ có một xác nhận ký trên một phiên bản; không xóa chữ ký để ký lại. |
+| `signing_challenges` | CHECK attempt_count >= 0 và <= giới hạn MVP; UNIQUE INDEX `party_id` WHERE `consumed_at IS NULL AND revoked_at IS NULL`. UNIQUE `(id, party_id)` làm đích cho FK ghép của `contract_signatures`. Gửi lại phải revoke challenge cũ, kể cả đã hết hạn; không dùng `now()` trong predicate index. |
+| `contract_signatures` | UNIQUE `party_id`, UNIQUE `challenge_id`; FK ghép `(party_id, challenge_id)` tới `signing_challenges(party_id, id)` để challenge luôn thuộc đúng bên ký; một bên chỉ có một xác nhận ký trên một phiên bản; không xóa chữ ký để ký lại. |
 | `invoices` | UNIQUE invoice_no; CHECK amount > 0; trạng thái paid yêu cầu paid_at, paid_by và payment_reference; void yêu cầu lý do/người/thời điểm. |
-| `commissions` | UNIQUE contract_id; CHECK base_amount >= 0, rate_percent BETWEEN 0 AND 100; CHECK amount = round(base_amount * rate_percent / 100, 0); paid yêu cầu thông tin chi; approved/paid yêu cầu thông tin duyệt. |
+| `commissions` | UNIQUE contract_id; FK ghép `(contract_id, agent_id)` tới `contracts(id, agent_id)` và `(contract_id, contract_version_id)` tới `contract_versions(contract_id, id)` thay cho các FK đơn lẻ, bảo đảm khoản hoa hồng trỏ đúng môi giới và đúng phiên bản của chính hợp đồng đó; CHECK base_amount >= 0, rate_percent BETWEEN 0 AND 100; CHECK amount = round(base_amount * rate_percent / 100, 0); paid yêu cầu thông tin chi; approved/paid yêu cầu thông tin duyệt. |
 | `kyc_verifications` | UNIQUE `(provider, provider_request_id)` khi mã yêu cầu khác NULL; UNIQUE INDEX customer_id WHERE status = 'pending', giới hạn một yêu cầu chờ mỗi khách; verified yêu cầu verified_at. |
 | `files` | UNIQUE storage_key; CHECK size_bytes >= 0 khi có; ready yêu cầu sha256 và size_bytes. |
 | `jobs`, `outbox_events` | UNIQUE idempotency_key / event_key; CHECK attempts >= 0, max_attempts > 0; jobs status thuộc `pending/running/succeeded/failed`. |
 
-Những trường FK phi chuẩn hóa ở `contracts` (`listing_id`, `property_id`, `agent_id`, `contract_type`) phải thống nhất với tin nguồn. Có thể dùng khóa ngoại ghép tới khóa UNIQUE tương ứng trên `listings`; nếu chọn kiểm tra service thì phải khóa tin trong giao dịch và không cho sửa căn/môi giới/loại tin đã có hợp đồng. Tương tự, `commissions.agent_id` phải bằng môi giới của hợp đồng, có thể ràng buộc bằng FK ghép `(contract_id, agent_id)`.
+FK ghép chỉ dùng được khi bảng đích có UNIQUE đúng bộ cột được trỏ; các UNIQUE phụ trợ cho mục đích này đã được khai báo ở bảng trên. Quyết định cho MVP:
+
+| Ràng buộc liên bảng | Cách thực thi |
+| --- | --- |
+| `contract_signatures.challenge_id` thuộc đúng `party_id` | FK ghép `(party_id, challenge_id)` → `signing_challenges(party_id, id)` |
+| `commissions.agent_id` bằng môi giới của hợp đồng | FK ghép `(contract_id, agent_id)` → `contracts(id, agent_id)` |
+| `commissions.contract_version_id` thuộc chính hợp đồng đó | FK ghép `(contract_id, contract_version_id)` → `contract_versions(contract_id, id)` |
+| `contract_versions.contract_type` bằng loại của hợp đồng | FK ghép `(contract_id, contract_type)` → `contracts(id, contract_type)` |
+| `contracts.listing_id/property_id/agent_id/contract_type` thống nhất với tin nguồn | Kiểm tra ở service, khóa tin trong giao dịch tạo/gửi ký |
+
+Chỗ cuối không dùng FK ghép: nó đòi UNIQUE `(id, property_id, agent_id, listing_type)` trên `listings`, trong khi các cột này còn được sửa hợp lệ khi tin ở `draft`. Ràng buộc thực tế là cấm sửa căn/môi giới/loại tin khi tin đã có hợp đồng (SP-02), nên giữ ở service kèm khóa bản ghi và integration test.
 
 ### 5.2. Phiên bản, ký và giữ căn
 
 1. Tạo hợp đồng, phiên bản đầu tiên và hai bên ký trong một giao dịch. Mỗi lần sửa bản nháp tạo phiên bản mới với snapshot và hai bên tương ứng; không cập nhật nội dung phiên bản cũ. Phiên bản hiện hành là `MAX(version_no)` của hợp đồng.
 2. Snapshot được tuần tự hóa theo quy tắc cố định để tính SHA-256; hash bao gồm nội dung, giá và danh tính/vai trò các bên ký. `signed_content_hash` và `signing_challenges.content_hash` phải bằng hash phiên bản của `party_id`.
 3. Gửi ký khóa hợp đồng và căn, kiểm tra `row_version`, căn `available`, tin `approved`, đủ hai bên và KYC khách đạt; đặt `frozen_at`, hợp đồng `pending_signatures`, căn `reserved`. Sau bước này không tạo phiên bản mới hoặc sửa/xóa bên ký.
-4. Ký khóa challenge và hợp đồng; kiểm tra chưa hết hạn/chưa dùng/chưa revoke, số lần thử, đúng người và phiên bản; KYC là yêu cầu mới nhất của đúng khách, trạng thái verified, chưa hết hạn nếu có. Cập nhật consumed_at và chữ ký trong cùng giao dịch. Challenge của chữ ký phải thuộc chính party đó, thực thi bằng FK ghép hoặc kiểm tra có khóa tại service.
+4. Ký khóa challenge và hợp đồng; kiểm tra chưa hết hạn/chưa dùng/chưa revoke, số lần thử, đúng người và phiên bản; KYC là yêu cầu mới nhất của đúng khách, trạng thái verified, chưa hết hạn nếu có. Cập nhật consumed_at và chữ ký trong cùng giao dịch. Challenge của chữ ký phải thuộc chính party đó, thực thi bằng FK ghép `(party_id, challenge_id)` dựa trên UNIQUE `(id, party_id)` ở mục 5.1.
 5. Chữ ký thứ hai hoàn tất giao dịch: đặt signed_at/status, chuyển căn sold/rented, đóng tin, tạo hoa hồng và jobs/outbox. UNIQUE index ngăn hai hợp đồng cùng chiếm căn; không chỉ dựa vào kiểm tra giao diện.
 6. Worker đọc phiên bản đã frozen và chữ ký bất biến để tạo PDF; `pdf_file_id` chỉ trỏ file ready, purpose contract_pdf. Hash của PDF tại `files.sha256` khác hash nội dung chuẩn hóa; không dùng thay thế nhau.
 7. Hủy hợp đồng chưa đủ chữ ký ghi actor/lý do/thời điểm, revoke challenge còn mở và giải phóng căn trong giao dịch. Chữ ký đã có vẫn giữ để audit. Không xóa/hủy hợp đồng signed trong MVP; vì thế căn rented không tự trở lại available.
@@ -435,7 +448,7 @@ Tìm kiếm từ khóa tên dự án/tiêu đề có thể bắt đầu bằng t
 | FR-05/06 — tin đăng, tìm kiếm | listings, projects, properties, agents |
 | FR-07/08 — hồ sơ và KYC | customers, agents, kyc_verifications, files |
 | FR-09/10 — ký và lưu hợp đồng | contracts, contract_versions, contract_parties, signing_challenges, contract_signatures, files |
-| FR-11 — hoa hồng | commissions, contracts, agents |
+| FR-11 — hoa hồng | commissions, contracts, contract_versions, agents |
 | FR-12 — dashboard | Truy vấn listings/contracts/commissions; không cần bảng reports cho số liệu dẫn xuất |
 | FR-13/14 — nhập/xuất | jobs, outbox_events, files và bảng nghiệp vụ được phép |
 | FR-15 — email | jobs, outbox_events, email_deliveries |
