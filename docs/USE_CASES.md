@@ -14,6 +14,7 @@
 | Khách hàng | Quản lý hồ sơ/KYC của mình; xem, ký và tải hợp đồng; xem hóa đơn của mình |
 | Môi giới | Quản lý tin và hợp đồng phụ trách; xem khách trong phạm vi, hoa hồng và báo cáo của mình |
 | Admin | Quản lý tài khoản/danh mục, duyệt tin, quản lý giao dịch/chứng từ/hoa hồng, báo cáo/audit; ký đại diện nếu được chỉ định và có quyền |
+| Người dùng | Cách gọi chung cho Khách hàng, Môi giới và Admin đã đăng nhập; dùng ở mục 3 cho các UC mà cả ba vai trò đều thực hiện nhưng khác phạm vi dữ liệu (UC-02, UC-03, UC-09, UC-20, UC-22) |
 | Nhà cung cấp KYC | Tiếp nhận xác thực danh tính và trả kết quả qua adapter |
 | Dịch vụ email | Nhận email reset, lời mời, OTP và thông báo hoàn tất |
 
@@ -21,9 +22,93 @@ Worker, DB, Redis và kho tệp là thành phần nội bộ, không phải vai 
 
 Mọi UC dưới đây thuộc P0, trừ 2FA đăng nhập được ghi riêng là P1. **Luồng chính** mô tả thành công; **ngoại lệ** chỉ rõ nhánh thay thế và dữ liệu được giữ lại. Mã FR/NFR lấy từ PRD, SP lấy từ SPEC. Chi tiết HTTP, validation và thời hạn OTP tuân SPEC.
 
-## 2. Sơ đồ tổng quan
+## 2. Sơ đồ use case
 
-Sơ đồ Mermaid sau biểu diễn actor và nhóm use case, không phải sơ đồ UML include/extend đầy đủ. Đường nối biểu thị tham gia; quyền chi tiết được quy định trong từng UC.
+Mục 2.1 là sơ đồ tổng quát: actor và các nhóm chức năng của hệ thống. Mục 2.2–2.4 phóng to từng nhóm nghiệp vụ tới từng UC. Mọi liên kết actor–use case tuân đúng ranh giới quyền trong [PRD mục 3](PRD.md) và [SPEC SP-01](SPEC.md).
+
+| Ký hiệu | Ý nghĩa |
+| --- | --- |
+| Khối bao ngoài | Ranh giới hệ thống; actor luôn nằm ngoài khối |
+| Mũi tên actor → chức năng (2.1) | Actor tham gia nhóm chức năng đó |
+| Đường liền không mũi tên (2.2–2.4) | Actor trực tiếp thao tác hoặc khởi tạo use case |
+| Đường gạch xám (2.2–2.4) | Actor chỉ xem dữ liệu của use case trong phạm vi được phép |
+
+Sơ đồ tổng quát gom nhiều UC vào một nhóm chức năng nên không thể hiện được ai làm gì bên trong nhóm; phạm vi theo vai trò nằm ở bảng đối chiếu ngay dưới sơ đồ và ở mục 2.2–2.4. Đây không phải sơ đồ UML include/extend đầy đủ.
+
+### 2.1. Sơ đồ use case tổng quát
+
+```mermaid
+flowchart LR
+    Guest([Khách truy cập])
+    Customer([Khách hàng])
+    Agent([Môi giới])
+    Admin([Admin])
+    KycProvider([Nhà cung cấp KYC])
+    Mailer([Dịch vụ email])
+
+    subgraph REM["Hệ thống quản lý bất động sản"]
+        Auth[Đăng ký, đăng nhập và hồ sơ cá nhân]
+        Search[Tìm kiếm và xem tin công khai]
+        Catalog[Quản lý dự án, căn hộ và tin đăng]
+        Kyc[Xác thực KYC khách hàng]
+        Contract[Lập, ký online và tải hợp đồng PDF]
+        Commission[Quản lý hoa hồng môi giới]
+        Invoice[Quản lý hóa đơn hợp đồng]
+        Report[Xem dashboard và báo cáo]
+        Data[Nhập, xuất dữ liệu và tác vụ nền]
+        SysAdmin[Quản lý tài khoản, phân quyền và audit log]
+    end
+
+    Guest --> Auth
+    Guest --> Search
+    Customer --> Auth
+    Customer --> Search
+    Customer --> Kyc
+    Customer --> Contract
+    Customer --> Invoice
+    Customer --> Data
+    Agent --> Auth
+    Agent --> Search
+    Agent --> Catalog
+    Agent --> Contract
+    Agent --> Commission
+    Agent --> Invoice
+    Agent --> Report
+    Agent --> Data
+    Admin --> Auth
+    Admin --> Search
+    Admin --> Catalog
+    Admin --> Kyc
+    Admin --> Contract
+    Admin --> Commission
+    Admin --> Invoice
+    Admin --> Report
+    Admin --> Data
+    Admin --> SysAdmin
+    KycProvider --> Kyc
+    Mailer --> Auth
+    Mailer --> Contract
+    Mailer --> Data
+```
+
+Đối chiếu nhóm chức năng với UC chi tiết và phạm vi theo vai trò:
+
+| Nhóm chức năng trên sơ đồ | UC chi tiết | Phạm vi theo vai trò |
+| --- | --- | --- |
+| Đăng ký, đăng nhập và hồ sơ cá nhân | UC-01, UC-02, UC-03, UC-09 | UC-01 chỉ dành cho khách chưa có tài khoản, luôn nhận vai trò Khách hàng; tài khoản môi giới do Admin tạo ở UC-04. Mỗi vai trò sửa hồ sơ của mình, Admin quản lý theo quyền, môi giới chỉ xem khách trong giao dịch phụ trách |
+| Tìm kiếm và xem tin công khai | UC-08 | Không cần đăng nhập; chỉ trả tin approved của căn available thuộc dự án active |
+| Quản lý dự án, căn hộ và tin đăng | UC-05, UC-06, UC-07 | Admin CRUD danh mục và là người duy nhất duyệt/từ chối tin; môi giới chỉ đọc danh mục và quản lý tin mình phụ trách |
+| Xác thực KYC khách hàng | UC-10 | Khách gửi hồ sơ của mình; Admin cần `kyc.read_sensitive` để xem dữ liệu định danh và thu hồi verified; nhà cung cấp trả kết quả qua callback đã xác thực |
+| Lập, ký online và tải hợp đồng PDF | UC-11, UC-12, UC-13, UC-14, UC-15 | Môi giới/Admin lập, gửi ký và hủy; khách ký với tư cách bên mua/thuê; Admin chỉ ký khi được chỉ định đại diện và có `contract.sign_representative`; tải PDF theo scope hợp đồng |
+| Quản lý hoa hồng môi giới | UC-16 | Admin duyệt và ghi nhận chi với `commission.pay`; môi giới chỉ xem khoản của mình; khách không truy cập dữ liệu hoa hồng |
+| Quản lý hóa đơn hợp đồng | UC-17 | Admin tạo, phát hành và ghi nhận thanh toán; khách và môi giới chỉ xem chứng từ của hợp đồng trong phạm vi của mình |
+| Xem dashboard và báo cáo | UC-18 | Admin toàn hệ thống, môi giới trong phạm vi phụ trách; khách hàng không có dashboard |
+| Nhập, xuất dữ liệu và tác vụ nền | UC-19, UC-20, UC-22 | Nhập Excel/CSV chỉ Admin; xuất dữ liệu theo scope, khách chỉ xuất dữ liệu và tài liệu của mình; mỗi actor chỉ theo dõi/thử lại job do mình yêu cầu, job hệ thống chỉ Admin xem |
+| Quản lý tài khoản, phân quyền và audit log | UC-04, UC-21 | Chỉ Admin có quyền quản trị tương ứng; audit không sửa/xóa được qua API |
+
+Nhà cung cấp KYC và Dịch vụ email là actor phụ (hệ thống ngoài): chúng chỉ phản hồi trong luồng KYC, email đặt lại mật khẩu, OTP ký và thông báo job, không tự khởi tạo nghiệp vụ nào.
+
+### 2.2. Tài khoản, danh mục và tin đăng — UC-01…UC-09
 
 ```mermaid
 flowchart LR
@@ -31,34 +116,97 @@ flowchart LR
     C["Khách hàng"]
     A["Môi giới"]
     M["Admin"]
+
+    subgraph S1["Hệ thống quản lý bất động sản"]
+        REG(["UC-01: Đăng ký tài khoản khách"])
+        AUTH(["UC-02–03: Đăng nhập, đăng xuất, đặt lại mật khẩu"])
+        USERADM(["UC-04: Quản lý tài khoản và vai trò"])
+        CAT(["UC-05–06: CRUD dự án và căn hộ"])
+        LIST(["UC-07: Đăng, sửa và duyệt tin"])
+        SEARCH(["UC-08: Tìm kiếm và xem tin công khai"])
+        PROFILE(["UC-09: Xem và sửa hồ sơ"])
+    end
+
+    E["Dịch vụ email"]
+
+    G --- REG & AUTH & SEARCH
+    C --- AUTH & SEARCH & PROFILE
+    A --- AUTH & SEARCH & LIST & PROFILE
+    A -.- CAT
+    M --- AUTH & USERADM & CAT & LIST & SEARCH & PROFILE
+    AUTH --- E
+```
+
+- Người tự đăng ký (UC-01) luôn chỉ nhận vai trò Khách hàng; tài khoản môi giới do Admin tạo trong UC-04.
+- UC-07: môi giới tạo/sửa/gửi duyệt tin mình phụ trách, chỉ Admin duyệt hoặc từ chối.
+- UC-05–06: Admin CRUD danh mục, môi giới chỉ đọc danh mục hoạt động theo SP-02.
+- UC-09: khách hàng và môi giới sửa hồ sơ của mình; Admin quản lý hồ sơ theo quyền; môi giới chỉ xem khách trong giao dịch phụ trách.
+- Dịch vụ email chỉ tham gia luồng đặt lại mật khẩu (UC-03), không tham gia đăng nhập/đăng xuất.
+
+### 2.3. KYC, hợp đồng và ký online — UC-10…UC-15
+
+```mermaid
+flowchart LR
+    C["Khách hàng"]
+    A["Môi giới"]
+    M["Admin"]
+
+    subgraph S2["Hệ thống quản lý bất động sản"]
+        KYC(["UC-10: Gửi và xử lý KYC"])
+        CONTRACT(["UC-11–12,14: Lập, gửi ký và hủy hợp đồng"])
+        SIGN(["UC-13: Ký hợp đồng bằng OTP"])
+        PDF(["UC-15: Xem và tải hợp đồng PDF"])
+    end
+
     K["Nhà cung cấp KYC"]
     E["Dịch vụ email"]
 
-    subgraph SYS["Hệ thống quản lý bất động sản"]
-        AUTH(["UC-01–04: Tài khoản và quyền"])
-        CAT(["UC-05–06: Dự án / căn hộ"])
-        LIST(["UC-07: Đăng và duyệt tin"])
-        SEARCH(["UC-08: Tìm kiếm tin"])
-        PROFILE(["UC-09: Hồ sơ"])
-        KYC(["UC-10: Xác thực KYC"])
-        CONTRACT(["UC-11–12,14: Lập / gửi / hủy hợp đồng"])
-        SIGN(["UC-13: Ký hợp đồng"])
-        PDF(["UC-15: Tải hợp đồng PDF"])
-        MONEY(["UC-16–17: Hoa hồng / hóa đơn"])
-        REPORT(["UC-18–20: Báo cáo / nhập / xuất"])
-        AUDIT(["UC-21: Audit log"])
-        JOB(["UC-22: Thông báo / tác vụ"])
-    end
-
-    G --- AUTH & SEARCH
-    C --- AUTH & SEARCH & PROFILE & KYC & SIGN & PDF & MONEY & REPORT & JOB
-    A --- AUTH & LIST & SEARCH & PROFILE & CONTRACT & PDF & MONEY & REPORT & JOB
-    M --- AUTH & CAT & LIST & SEARCH & PROFILE & KYC & CONTRACT & SIGN & PDF & MONEY & REPORT & AUDIT & JOB
-    K --- KYC
-    E --- AUTH & SIGN & JOB
+    C --- KYC & SIGN & PDF
+    A --- CONTRACT & PDF
+    M --- KYC & CONTRACT & SIGN & PDF
+    KYC --- K
+    SIGN --- E
 ```
 
-Khách chỉ xem hóa đơn và xuất dữ liệu của mình trong nhóm MONEY/REPORT; không quản lý hoa hồng hoặc xem dashboard toàn hệ thống. Môi giới không có quyền duyệt tin, ghi nhận tiền hoặc ký đại diện mặc định.
+- UC-10: khách gửi hồ sơ của mình; Admin chỉ xem dữ liệu định danh khi có permission `kyc.read_sensitive` và thu hồi verified qua luồng riêng có audit.
+- UC-11–12,14 do Admin hoặc môi giới phụ trách thực hiện; khách hàng chỉ xem phần nội dung hợp đồng dành cho mình, không nhận thông tin hoa hồng nội bộ.
+- UC-13: khách hàng ký với tư cách bên mua/thuê; Admin chỉ ký khi được chỉ định là đại diện trong hợp đồng và có permission `contract.sign_representative` (A-02).
+- UC-15: hai bên ký, môi giới phụ trách và Admin có quyền tải được tài liệu; ngoài phạm vi bị từ chối.
+
+### 2.4. Tiền, báo cáo và vận hành — UC-16…UC-22
+
+```mermaid
+flowchart LR
+    C["Khách hàng"]
+    A["Môi giới"]
+    M["Admin"]
+
+    subgraph S3["Hệ thống quản lý bất động sản"]
+        COMM(["UC-16: Duyệt và ghi nhận hoa hồng"])
+        INV(["UC-17: Quản lý hóa đơn nội bộ"])
+        DASH(["UC-18: Dashboard và báo cáo"])
+        IMP(["UC-19: Nhập dữ liệu Excel/CSV"])
+        EXP(["UC-20: Xuất dữ liệu và báo cáo"])
+        AUDIT(["UC-21: Tra cứu audit log"])
+        JOB(["UC-22: Thông báo và tác vụ nền"])
+    end
+
+    E["Dịch vụ email"]
+
+    C --- EXP & JOB
+    C -.- INV
+    A --- DASH & EXP & JOB
+    A -.- COMM
+    A -.- INV
+    M --- COMM & INV & DASH & IMP & EXP & AUDIT & JOB
+    JOB --- E
+```
+
+- UC-16: khách hàng không truy cập dữ liệu hoa hồng ở bất kỳ mức nào; môi giới chỉ xem khoản của mình; chỉ Admin có `commission.pay` được ghi nhận chi.
+- UC-17: Admin tạo/phát hành/ghi nhận thanh toán; khách và môi giới chỉ xem chứng từ của hợp đồng trong phạm vi của mình.
+- UC-18: chỉ Admin và môi giới có dashboard; môi giới bị giới hạn phạm vi phụ trách, khách hàng không có use case này.
+- UC-20: khách hàng chỉ xuất dữ liệu và tài liệu của mình; UC-19 nhập dữ liệu là của Admin.
+- UC-22: mỗi actor chỉ theo dõi/thử lại job do mình yêu cầu; job hệ thống chỉ Admin xem được.
 
 ## 3. Danh mục use case và truy vết
 
