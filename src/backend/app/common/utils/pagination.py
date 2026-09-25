@@ -29,3 +29,8 @@ def page_params(
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> PageParams:
     return PageParams(page=page, page_size=page_size)
+
+
+def escape_like(term: str) -> str:
+    """Escape ký tự đại diện của LIKE để từ khóa người dùng được so khớp nguyên văn."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

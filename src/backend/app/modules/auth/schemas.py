@@ -21,6 +21,8 @@ class UserPublic(BaseModel):
     phone: str | None
     status: str
     roles: list[str]
+    # Client cần giá trị này để gửi lại trong `PATCH /me` (khóa lạc quan).
+    row_version: int
 
 
 class TokenResponse(BaseModel):

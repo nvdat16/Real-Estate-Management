@@ -167,6 +167,7 @@ async def get_me(db: AsyncSession, *, user: User) -> UserPublic:
         phone=user.phone,
         status=user.status,
         roles=role_codes,
+        row_version=user.row_version,
     )
 
 

@@ -49,6 +49,14 @@ def invalid_state(message: str) -> AppError:
     return AppError("INVALID_STATE", message, status_code=409)
 
 
+def dependency_exists(message: str) -> AppError:
+    return AppError("DEPENDENCY_EXISTS", message, status_code=409)
+
+
+def property_unavailable(message: str = "Căn hộ không còn khả dụng.") -> AppError:
+    return AppError("PROPERTY_UNAVAILABLE", message, status_code=409)
+
+
 def reset_token_invalid() -> AppError:
     return AppError(
         "RESET_TOKEN_INVALID",
