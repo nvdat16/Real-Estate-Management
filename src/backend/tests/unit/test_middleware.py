@@ -11,6 +11,7 @@ from app.middleware import (
     RequestIDMiddleware,
     register_exception_handlers,
 )
+from app.middleware.rate_limit import DEFAULT_ROUTE_LIMITS
 
 
 class FakePipeline:
@@ -58,12 +59,11 @@ def test_request_id_is_echoed_and_invalid_value_is_replaced() -> None:
         return {"ok": True}
 
     client = TestClient(app)
-    assert client.get("/", headers={"X-Request-ID": "req-client"}).headers[
-        "x-request-id"
-    ] == "req-client"
-    generated = client.get("/", headers={"X-Request-ID": "bad\nvalue"}).headers[
-        "x-request-id"
-    ]
+    assert (
+        client.get("/", headers={"X-Request-ID": "req-client"}).headers["x-request-id"]
+        == "req-client"
+    )
+    generated = client.get("/", headers={"X-Request-ID": "bad\nvalue"}).headers["x-request-id"]
     assert generated.startswith("req-")
     assert generated != "bad\nvalue"
 
@@ -120,6 +120,29 @@ def test_rate_limit_rejects_request_and_hashes_client_identity() -> None:
     assert response.json()["error"]["code"] == "RATE_LIMITED"
     assert int(response.headers["retry-after"]) >= 1
     assert "testclient" not in redis.last_key
+
+
+def test_default_route_limits_dung_tien_to_api_v1() -> None:
+    """PLAN task 2.8: key phải khớp path thật sau khi router mount `/api/v1`."""
+    assert ("POST", "/api/v1/auth/token") in DEFAULT_ROUTE_LIMITS
+    assert ("POST", "/api/v1/auth/password-reset/request") in DEFAULT_ROUTE_LIMITS
+    assert ("POST", "/auth/token") not in DEFAULT_ROUTE_LIMITS
+
+
+def test_login_duoc_bao_ve_boi_gioi_han_mac_dinh() -> None:
+    app = FastAPI()
+    app.add_middleware(RateLimitMiddleware, redis=FakeRedis())
+    app.add_middleware(RequestIDMiddleware)
+
+    @app.post("/api/v1/auth/token")
+    async def token() -> dict[str, str]:
+        return {"access_token": "x"}
+
+    client = TestClient(app)
+    limit = DEFAULT_ROUTE_LIMITS[("POST", "/api/v1/auth/token")].requests
+    for _ in range(limit):
+        assert client.post("/api/v1/auth/token").status_code == 200
+    assert client.post("/api/v1/auth/token").status_code == 429
 
 
 def test_sensitive_route_fails_closed_when_redis_is_unavailable() -> None:
