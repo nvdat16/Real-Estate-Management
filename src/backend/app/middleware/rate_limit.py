@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from redis.asyncio import from_url as redis_from_url
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,8 +30,8 @@ class RateLimit:
 
 DEFAULT_RATE_LIMIT = RateLimit(100, 60)
 DEFAULT_ROUTE_LIMITS: dict[tuple[str, str], RateLimit] = {
-    ("POST", "/auth/token"): RateLimit(10, 60),
-    ("POST", "/auth/password-reset/request"): RateLimit(20, 900),
+    ("POST", "/api/v1/auth/token"): RateLimit(10, 60),
+    ("POST", "/api/v1/auth/password-reset/request"): RateLimit(20, 900),
 }
 
 
@@ -57,13 +58,13 @@ class RateLimitMiddleware:
         if redis is None and redis_url is None:
             raise ValueError("redis or redis_url is required")
         self.app = app
-        self.redis = redis if redis is not None else redis_from_url(
-            redis_url, encoding="utf-8", decode_responses=True
+        self.redis = (
+            redis
+            if redis is not None
+            else redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
         )
         self._owns_redis = redis is None
-        self.route_limits = dict(
-            DEFAULT_ROUTE_LIMITS if route_limits is None else route_limits
-        )
+        self.route_limits = dict(DEFAULT_ROUTE_LIMITS if route_limits is None else route_limits)
         self.default_limit = default_limit
         self.excluded_paths = frozenset(excluded_paths)
         self.fail_closed_paths = frozenset(
@@ -73,9 +74,7 @@ class RateLimitMiddleware:
         )
         self.key_prefix = key_prefix
 
-    async def __call__(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
             await self._handle_lifespan(scope, receive, send)
             return
@@ -190,14 +189,10 @@ class RateLimitMiddleware:
             headers.append((b"x-ratelimit-limit", str(limit).encode()))
         if remaining is not None:
             headers.append((b"x-ratelimit-remaining", str(remaining).encode()))
-        await send(
-            {"type": "http.response.start", "status": status_code, "headers": headers}
-        )
+        await send({"type": "http.response.start", "status": status_code, "headers": headers})
         await send({"type": "http.response.body", "body": body})
 
-    async def _handle_lifespan(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
+    async def _handle_lifespan(self, scope: Scope, receive: Receive, send: Send) -> None:
         async def close_after_shutdown(message: Message) -> None:
             await send(message)
             if message["type"] == "lifespan.shutdown.complete" and self._owns_redis:

@@ -13,13 +13,12 @@ from contextvars import ContextVar, Token
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+
 REQUEST_ID_HEADER = b"x-request-id"
 MAX_REQUEST_ID_LENGTH = 128
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
-request_id_context: ContextVar[str | None] = ContextVar(
-    "request_id", default=None
-)
+request_id_context: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 
 def get_request_id() -> str | None:
@@ -40,10 +39,7 @@ def _request_id_from_headers(scope: Scope) -> str:
             candidate = value.decode("ascii")
         except UnicodeDecodeError:
             break
-        if (
-            len(candidate) <= MAX_REQUEST_ID_LENGTH
-            and _SAFE_REQUEST_ID.fullmatch(candidate)
-        ):
+        if len(candidate) <= MAX_REQUEST_ID_LENGTH and _SAFE_REQUEST_ID.fullmatch(candidate):
             return candidate
         break
     return _new_request_id()
@@ -60,9 +56,7 @@ class RequestIDMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -75,9 +69,7 @@ class RequestIDMiddleware:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers = [
-                    (name, value)
-                    for name, value in headers
-                    if name.lower() != REQUEST_ID_HEADER
+                    (name, value) for name, value in headers if name.lower() != REQUEST_ID_HEADER
                 ]
                 headers.append((REQUEST_ID_HEADER, request_id.encode("ascii")))
                 message["headers"] = headers

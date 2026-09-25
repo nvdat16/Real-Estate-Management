@@ -12,6 +12,7 @@ import time
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+
 logger = logging.getLogger("app.audit")
 
 
@@ -27,9 +28,7 @@ class AuditMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -53,11 +52,7 @@ class AuditMiddleware:
             client = scope.get("client")
             headers = dict(scope.get("headers", []))
             user = state.get("user")
-            actor_id = (
-                getattr(user, "id", None)
-                or state.get("user_id")
-                or state.get("actor_id")
-            )
+            actor_id = getattr(user, "id", None) or state.get("user_id") or state.get("actor_id")
             logger.info(
                 "HTTP request completed",
                 extra={
@@ -66,15 +61,11 @@ class AuditMiddleware:
                     "method": scope.get("method"),
                     "path": _clean(str(path), 500),
                     "status_code": status_code,
-                    "duration_ms": round(
-                        (time.perf_counter() - started) * 1000, 2
-                    ),
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
                     "client_ip": client[0] if client else None,
                     "actor_id": str(actor_id) if actor_id is not None else None,
                     "user_agent": _clean(
-                        headers.get(b"user-agent", b"").decode(
-                            "utf-8", errors="replace"
-                        ),
+                        headers.get(b"user-agent", b"").decode("utf-8", errors="replace"),
                         300,
                     ),
                 },

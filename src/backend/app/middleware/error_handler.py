@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.middleware.request_id import get_request_id
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,9 +87,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-async def http_error_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
+async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     detail = exc.detail
     code = _HTTP_ERROR_CODES.get(exc.status_code, "HTTP_ERROR")
     details = None
@@ -99,9 +98,7 @@ async def http_error_handler(
         if isinstance(candidate_details, (Mapping, list)):
             details = candidate_details
     else:
-        message = (
-            detail if isinstance(detail, str) else "Yêu cầu không thể xử lý."
-        )
+        message = detail if isinstance(detail, str) else "Yêu cầu không thể xử lý."
     return error_response(
         request,
         status_code=exc.status_code,
@@ -112,9 +109,7 @@ async def http_error_handler(
     )
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     # Do not include ``input`` from Pydantic's errors: it can contain a
     # password, token, OTP, or raw identity data.
     details = [

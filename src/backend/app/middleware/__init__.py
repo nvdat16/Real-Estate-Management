@@ -5,6 +5,7 @@ from app.middleware.error_handler import AppError, register_exception_handlers
 from app.middleware.rate_limit import RateLimit, RateLimitMiddleware
 from app.middleware.request_id import RequestIDMiddleware, get_request_id
 
+
 __all__ = [
     "AppError",
     "AuditMiddleware",
