@@ -176,7 +176,7 @@ stateDiagram-v2
 
 | Nghiệp vụ | Quy tắc |
 | --- | --- |
-| Sinh hoa hồng | Khi signed, lấy agent và số liệu frozen version; `amount = round(base × rate / 100, 0)` bằng Decimal, làm tròn half-up với giá trị không âm; UNIQUE contract_id |
+| Sinh hoa hồng | Khi signed, lấy agent và số liệu frozen version, ghi `contract_version_id` của phiên bản đã ký; `amount = round(base × rate / 100, 0)` bằng Decimal, làm tròn half-up với giá trị không âm; UNIQUE contract_id |
 | Duyệt/chi | Admin có quyền: pending → approved → paid; paid bắt buộc payment_reference, người chi và thời điểm server; hủy pending/approved cần lý do |
 | Bất biến hoa hồng | Không sửa base/rate/amount sau tạo; paid/cancelled là cuối; môi giới chỉ xem khoản của mình, khách không nhận trường hoa hồng qua bất kỳ response/export/PDF nào |
 | Tạo hóa đơn | Admin tạo draft từ signed contract, invoice_no duy nhất, amount > 0; nhiều hóa đơn theo đợt được phép; không suy ra đã thanh toán từ ký hợp đồng |
@@ -196,7 +196,7 @@ Lệnh duyệt/chi/thanh toán dùng row_version, khóa bản ghi và audit cùn
 - Nhập chỉ Admin: `.xlsx` và `.csv` UTF-8, tối đa 10 MB/5.000 dòng dữ liệu mỗi job; không nhận `.xlsm`, macro, công thức hay external links. Kiểm tra MIME/nội dung thực và giới hạn kích thước giải nén XLSX.
 - Mẫu projects: code, name, address, province_code, ward_code, status. Mẫu properties: project_code, unit_code, area_m2, bedrooms, floor, description; trạng thái căn mới luôn available. Các trường bắt buộc/nullable theo ERD và SP-02.
 - Nhập MVP là tạo mới, không upsert. Dòng trùng mã trong file/DB hoặc project không tồn tại là lỗi. Validate toàn bộ, trả số dòng/cột/mã lỗi; nếu có lỗi thì không thêm bản ghi nghiệp vụ nào. Khi ghi vẫn dùng transaction và constraints để chống dữ liệu thay đổi sau validation. Retry job không nhập lần hai.
-- Xuất Excel/CSV: tin, hợp đồng, hoa hồng theo quyền; PDF: báo cáo, hợp đồng, hóa đơn. Dùng allowlist cột, xử lý ô bắt đầu `=`, `+`, `-`, `@` như text để không thực thi công thức. Không xuất password/token/OTP/KYC thô/internal_terms cho khách.
+- Xuất Excel/CSV: tin, hợp đồng, hoa hồng theo quyền; PDF: báo cáo, hợp đồng, hóa đơn. Dùng allowlist cột, xử lý ô bắt đầu `=`, `+`, `-`, `@` như text để không thực thi công thức. Không xuất password/token/OTP/KYC thô/internal_terms cho khách. Tệp kết quả lưu theo `files.purpose` của ERD: `report` cho báo cáo/chứng từ PDF, `data_export` cho Excel/CSV.
 - Mỗi export lưu payload gồm bộ lọc và actor, không lưu SQL do client gửi. Worker đánh giá lại quyền hiện tại, dùng phạm vi giao của quyền lúc yêu cầu và lúc xử lý; tài khoản mất quyền thì job failed. Tải lại cũng kiểm tra quyền hiện tại; nếu scope đã thu hẹp so với tệp đã sinh thì chặn và yêu cầu xuất lại.
 - Báo cáo/export đọc snapshot nhất quán tại lúc worker xử lý, không cam kết snapshot ở thời điểm bấm nút. Kết quả ghi generated_at, khoảng lọc, số dòng.
 - Upload KYC chỉ JPEG/PNG/PDF tối đa 10 MB/tệp; tên lưu do server sinh, không ghép đường dẫn từ filename. Tải private qua API có quyền, `Content-Disposition: attachment`, MIME đúng và `nosniff`; không trả storage_key/đường dẫn nội bộ trong public response.
@@ -225,14 +225,14 @@ Lệnh duyệt/chi/thanh toán dùng row_version, khóa bản ghi và audit cùn
 | Danh mục | `GET/POST /projects`, `/properties`; `GET/PATCH/DELETE /projects/{id}`, `/properties/{id}` | Admin ghi; môi giới đọc; public qua tin |
 | Tin công khai | `GET /public/listings`, `/public/listings/{id}` | Projection công khai, quy tắc SP-02 |
 | Tin nội bộ | `GET/POST /listings`; `GET/PATCH/DELETE /listings/{id}`; `POST /listings/{id}/submit`, `/withdraw`, `/approve`, `/reject`, `/close` | Admin/môi giới phụ trách; approve/reject chỉ Admin |
-| KYC | `POST /me/kyc`; `GET /me/kyc`, `/kyc/{id}`; `POST /integrations/kyc/callback`; `POST /kyc/{id}/revoke` | Khách, Admin chuyên biệt; callback xác thực adapter |
+| KYC | `POST /me/kyc`; `GET /me/kyc`, `/kyc`, `/kyc/{id}`; `POST /integrations/kyc/callback`; `POST /kyc/{id}/revoke` | Khách chỉ hồ sơ của mình; `GET /kyc` là hàng chờ chỉ Admin có quyền; callback xác thực adapter |
 | Hợp đồng | `GET/POST /contracts`; `GET/PATCH/DELETE /contracts/{id}`; `POST /contracts/{id}/send-for-signing`, `/cancel` | Theo SP-04; PATCH chỉ draft và tạo version mới |
-| Ký | `GET /contracts/{id}/versions/{version_id}`; `POST /contract-parties/{id}/otp`; `GET /contract-parties/{id}/challenge`; `POST /contract-parties/{id}/sign` | Đọc version theo scope, OTP/sign chỉ đúng party |
-| Chứng từ | `GET/POST /invoices`; `GET/PATCH /invoices/{id}`; `POST /invoices/{id}/issue`, `/pay`, `/void` | Admin ghi; bên hợp đồng/môi giới đọc theo scope |
+| Ký | `GET /contracts/{id}/versions`, `/contracts/{id}/versions/{version_id}`; `POST /contract-parties/{id}/otp`; `GET /contract-parties/{id}/challenge`; `POST /contract-parties/{id}/sign` | Đọc version theo scope, OTP/sign chỉ đúng party |
+| Chứng từ | `GET/POST /invoices`; `GET/PATCH /invoices/{id}`; `POST /invoices/{id}/issue`, `/pay`, `/void` | Admin ghi, PATCH chỉ draft; bên hợp đồng/môi giới đọc theo scope |
 | Hoa hồng | `GET /commissions`, `/commissions/{id}`; `POST /commissions/{id}/approve`, `/pay`, `/cancel` | Admin ghi; môi giới đọc của mình |
 | Báo cáo | `GET /reports/dashboard`; `POST /reports/exports`, `/data/exports` | Admin/môi giới theo scope; khách chỉ dữ liệu mình qua data export cho phép |
 | Nhập/tệp | `POST /imports/projects`, `/imports/properties`, `/files`; `GET /files/{id}/download` | Admin nhập; upload/download kiểm tra purpose và quan hệ chủ sở hữu |
-| Vận hành | `GET /jobs/{id}`; `POST /jobs/{id}/retry`; `GET /audit-logs` | Chủ job/Admin; audit chỉ Admin có quyền |
+| Vận hành | `GET /jobs`, `/jobs/{id}`; `POST /jobs/{id}/retry`; `GET /audit-logs` | Chủ job/Admin; `GET /jobs` chỉ trả job của chính actor, job hệ thống chỉ Admin; audit chỉ Admin có quyền |
 
 `/approve`, `/pay`... trong cùng dòng là hậu tố của resource ngay trước đó. Các endpoint theo lệnh không nhận trạng thái đích tùy ý. Nếu thiết kế route thay đổi khi triển khai, giữ nguyên quyền, invariant và mã lỗi; cập nhật OpenAPI và tài liệu đồng thời.
 
