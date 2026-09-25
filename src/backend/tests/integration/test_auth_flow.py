@@ -164,3 +164,32 @@ async def test_sai_mat_khau_va_email_khong_ton_tai_tra_cung_loi(
     assert wrong_password.status_code == 401
     assert unknown_email.status_code == 401
     assert wrong_password.json()["error"]["code"] == unknown_email.json()["error"]["code"]
+
+
+async def test_get_me_tra_row_version_dung_cho_patch_me(client: httpx.AsyncClient) -> None:
+    email = "profile@example.com"
+    password = "MatKhauManh12345"
+    await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": password, "full_name": "Người Sửa Hồ Sơ"},
+    )
+    login_response = await client.post(
+        "/api/v1/auth/token", data={"username": email, "password": password}
+    )
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    me = (await client.get("/api/v1/me", headers=headers)).json()
+    updated = await client.patch(
+        "/api/v1/me",
+        headers=headers,
+        json={"full_name": "Tên Mới", "row_version": me["row_version"]},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["row_version"] == me["row_version"] + 1
+
+    stale = await client.patch(
+        "/api/v1/me",
+        headers=headers,
+        json={"full_name": "Ghi Đè", "row_version": me["row_version"]},
+    )
+    assert stale.status_code == 409

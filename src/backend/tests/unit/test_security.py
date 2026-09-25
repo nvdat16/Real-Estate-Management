@@ -39,7 +39,12 @@ def test_token_het_han_bi_bao_loi_rieng() -> None:
 
 def test_token_sai_secret_bi_tu_choi() -> None:
     token = create_access_token(uuid.uuid4(), auth_version=1)
-    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+    # Đổi ký tự đầu của chữ ký, không phải ký tự cuối: chữ ký HS256 256 bit nên
+    # ký tự base64url cuối chỉ mang 4 bit dữ liệu, đổi `a`↔`b` ở đó giữ nguyên byte
+    # chữ ký và token vẫn hợp lệ (test từng fail ngẫu nhiên vì vậy).
+    header, payload, signature = token.split(".")
+    flipped = "A" if signature[0] != "A" else "B"
+    tampered = f"{header}.{payload}.{flipped}{signature[1:]}"
 
     with pytest.raises(TokenError):
         decode_access_token(tampered)

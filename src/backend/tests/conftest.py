@@ -43,16 +43,26 @@ from app.modules.audit_logs.router import router as audit_logs_router  # noqa: E
 from app.modules.auth.router import me_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
 from app.modules.customers.router import router as customers_router  # noqa: E402
+from app.modules.listings.router import public_router as public_listings_router  # noqa: E402
+from app.modules.listings.router import router as listings_router  # noqa: E402
+from app.modules.projects.router import public_router as public_catalog_router  # noqa: E402
+from app.modules.projects.router import router as projects_router  # noqa: E402
+from app.modules.properties.router import router as properties_router  # noqa: E402
 from app.modules.users.router import router as users_router  # noqa: E402
 
 
-_PHASE_2_ROUTERS = (
+_API_ROUTERS = (
     auth_router,
     me_router,
     users_router,
     customers_router,
     agents_router,
     audit_logs_router,
+    projects_router,
+    properties_router,
+    listings_router,
+    public_catalog_router,
+    public_listings_router,
 )
 
 
@@ -134,7 +144,7 @@ def anyio_backend() -> str:
 
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
-    """Client HTTP cho router Phase 2, KHÔNG dùng `app.main.app` trực tiếp.
+    """Client HTTP cho các router API, KHÔNG dùng `app.main.app` trực tiếp.
 
     `app.main.app` gắn `RateLimitMiddleware` thật (cần Redis) — dùng nó ở đây
     sẽ làm test đăng nhập/reset liên tiếp trong một session bị chính rate limit
@@ -144,7 +154,7 @@ async def client(db_session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
     """
     test_app = FastAPI()
     register_exception_handlers(test_app)
-    for router in _PHASE_2_ROUTERS:
+    for router in _API_ROUTERS:
         test_app.include_router(router, prefix="/api/v1")
     test_app.dependency_overrides[get_db] = lambda: db_session
 

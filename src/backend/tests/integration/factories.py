@@ -252,9 +252,11 @@ async def get_or_create_permission(session: AsyncSession, code: str) -> Permissi
 
 
 async def grant_permission(session: AsyncSession, role: Role, permission_code: str) -> None:
+    """Idempotent: nhiều actor cùng role trong một test cấp lại cùng permission."""
     permission = await get_or_create_permission(session, permission_code)
-    session.add(RolePermission(role_id=role.id, permission_id=permission.id))
-    await session.flush()
+    if await session.get(RolePermission, (role.id, permission.id)) is None:
+        session.add(RolePermission(role_id=role.id, permission_id=permission.id))
+        await session.flush()
 
 
 async def assign_role(session: AsyncSession, user: User, role_code: str) -> Role:
@@ -277,6 +279,17 @@ async def make_actor(
     for code in permission_codes:
         await grant_permission(session, role, code)
     return user
+
+
+async def make_agent_actor(
+    session: AsyncSession, *, permission_codes: tuple[str, ...] = ("listing.manage",)
+) -> tuple[User, Agent]:
+    """Tài khoản môi giới đăng nhập được: role agent, permission và hồ sơ agent."""
+    user = await make_actor(session, role_code="agent", permission_codes=permission_codes)
+    agent = Agent(user_id=user.id, agent_code=_unique("MG"))
+    session.add(agent)
+    await session.flush()
+    return user, agent
 
 
 async def make_audit_log(
