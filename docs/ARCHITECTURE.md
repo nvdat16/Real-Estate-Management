@@ -6,8 +6,6 @@ Hệ thống quản lý bất động sản (REM) quản lý tập trung dự á
 
 Mục tiêu kiến trúc là giữ mọi business rule và quyết định quyền ở backend, giữ PostgreSQL làm system of record cho cả dữ liệu nghiệp vụ và trạng thái tác vụ nền, cô lập nhà cung cấp ngoài (KYC, SMTP, kho tệp) qua adapter, và cho phép làm từng vertical slice mà không biến cây file skeleton thành nguồn business rule.
 
-Backend được triển khai thành **5 microservice theo bounded context cộng một API gateway**, chung một PostgreSQL với mỗi service một schema ([ADR-011](adr/ADR-011-microservice-decomposition.md)). Ranh giới sở hữu dữ liệu ở mục 5.5 vì thế được ép ở mức tiến trình, không chỉ bằng quy ước thư mục.
-
 ### 1.1 Stakeholders
 
 | Role | Concern |
@@ -45,11 +43,11 @@ Quy ước nhãn trạng thái dùng xuyên suốt tài liệu: **Implemented** 
 
 | # | Constraint | Type | Implication |
 |---|---|---|---|
-| C1 | Sau [PLAN](PLAN.md) Phase 0–1 và đợt tách service: hạ tầng, 24 model (đã chia về 5 service), 5 migration, seed và test invariant là Implemented; toàn bộ `router/service/repository/schemas/permissions` của 15 module vẫn **rỗng** | Project | mô tả use case và API trong tài liệu này là thiết kế mục tiêu, chỉ phần nêu rõ Implemented mới có hành vi thật |
+| C1 | Sau [PLAN](PLAN.md) Phase 0–1: hạ tầng, 24 model, migration, seed và test invariant là Implemented; toàn bộ `router/service/repository/schemas/permissions` của 15 module vẫn **rỗng** | Project | mô tả use case và API trong tài liệu này là thiết kế mục tiêu, chỉ phần nêu rõ Implemented mới có hành vi thật |
 | C2 | Frontend không truy cập PostgreSQL/Redis trực tiếp | Security | mọi query/command đi qua FastAPI và kiểm tra quyền phía server |
-| C3 | Stack đã cố định trong repository: FastAPI + SQLAlchemy async + PostgreSQL 16 + Redis 7 (rate limit, cache, event stream) + Celery + React 19/Vite + Nginx + Docker Compose | Technical | không thay stack mà không có ADR; phiên bản đã pin ở `src/backend/requirements/base.txt` dùng chung cho mọi service |
-| C4 | PostgreSQL là system of record; [ERD](ERD.md) là canonical schema contract. Một database, mỗi service một schema, FK liên schema được giữ ([ADR-011](adr/ADR-011-microservice-decomposition.md)) | Technical | mỗi service có `alembic.ini` và bảng `alembic_version` riêng; thứ tự áp migration (identity → platform → crm → catalog → transaction) là ràng buộc vận hành, sai thứ tự thì FK liên schema không tạo được |
-| C5 | Không dùng distributed transaction — với nhà cung cấp ngoài **và giữa các service** | Technical | commit trạng thái nghiệp vụ trước, side effect đi qua `jobs`/`outbox_events` (job nền) và `event_outbox` → Redis Streams (sự kiện liên service), đều kèm idempotency và đối soát |
+| C3 | Stack đã cố định trong repository: FastAPI + SQLAlchemy async + PostgreSQL 16 + Redis 7 + Celery + React 19/Vite + Nginx + Docker Compose | Technical | không thay stack mà không có ADR; `requirements.txt` hiện chưa pin phiên bản, phải pin trước khi bàn giao |
+| C4 | PostgreSQL là system of record; [ERD](ERD.md) là canonical schema contract | Technical | `alembic.ini` rỗng và chưa có thư mục migration; phải sinh migration + test ràng buộc trước khi code module nghiệp vụ |
+| C5 | Không dùng distributed transaction với nhà cung cấp ngoài | Technical | commit trạng thái nghiệp vụ trước, side effect đi qua `jobs`/`outbox_events` với idempotency và đối soát |
 | C6 | Dữ liệu KYC, nội dung hợp đồng, hoa hồng và hóa đơn là dữ liệu nhạy cảm | Legal/Security | least privilege, kho tệp riêng tư, redaction log, không lưu OTP thô |
 | C7 | Phạm vi MVP bị chốt bởi giả định A-01…A-08 của [PRD](PRD.md): ba vai trò, hai bên ký, KYC trước ký, OTP email, VND, hóa đơn nội bộ | Product | không thêm thanh toán online, chữ ký số nhà cung cấp, thuê nhiều kỳ hay 2FA đăng nhập vào MVP |
 | C8 | Giao diện tiếng Việt, hiển thị giờ `Asia/Ho_Chi_Minh`, tiền VND | Product | bộ lọc ngày quy đổi sang UTC ở server; thuật ngữ trạng thái phải khớp PRD/SPEC |
@@ -119,7 +117,7 @@ Không có Identity Provider ngoài: MVP tự quản lý tài khoản và phát 
 | Q4 dữ liệu nhạy cảm | snapshot `signed_document` tách `internal_terms`, kho tệp riêng tư, redaction ở logging, không lưu OTP thô | §5.3, §8, ADR-008 |
 | Q5 idempotency | `jobs.idempotency_key` + `outbox_events.event_key`, khóa mẫu theo nghiệp vụ, đối soát job treo | §5.4, §6.5, ADR-007 |
 | Q6 hiệu năng | filter/sort/page phía server, chỉ mục theo truy vấn của [ERD §7](ERD.md), cache danh mục/báo cáo TTL ≤ 60 giây | §8, §10 |
-| Q7 bảo trì | 5 service theo bounded context, trong mỗi service là `<pkg>/modules/<domain>/` với phụ thuộc một chiều router → service → repository, adapter cho nhà cung cấp | §5.3, §5.5, [ADR-011](adr/ADR-011-microservice-decomposition.md) |
+| Q7 bảo trì | modular monolith theo `app/modules/<domain>/`, phụ thuộc một chiều router → service → repository, adapter cho nhà cung cấp | §5.3, §5.5, ADR-001 |
 | Q8 bàn giao | Compose chạy được, Alembic migration, seed ≥ 2.000 bản ghi, CI build → test → coverage gate | §7, §12, ADR-002 |
 
 **The one-sentence strategy:** *một modular monolith FastAPI giữ toàn bộ business rule và transaction, PostgreSQL làm system of record cho cả dữ liệu nghiệp vụ và trạng thái job, Celery chỉ chạy việc đã được commit, mọi hệ thống ngoài đi qua adapter.*
@@ -161,97 +159,71 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    users(["👤 Khách truy cập · Khách hàng · Môi giới · Admin"])
+    guest(["👤 Khách truy cập"])
+    customer(["👤 Khách hàng"])
+    agent(["👤 Môi giới"])
+    admin(["👤 Admin"])
 
     subgraph system["REM System Boundary — Docker Compose"]
         direction TB
-        proxy["Nginx Reverse Proxy<br/><i>[Container · Edge — Implemented]</i><br/>phục vụ React, chuyển tiếp /api tới gateway"]
-        web["React Web Application<br/><i>[Container · Presentation — Skeleton]</i>"]
-        gw["API Gateway<br/><i>[Container · Edge — Implemented]</i><br/>định tuyến theo tiền tố, rate limit biên, chặn header nội bộ"]
-
-        subgraph svc["Application Tier — 5 bounded context"]
-            direction TB
-            identity["identity-service<br/><i>[Partial]</i><br/>tài khoản, JWT, RBAC"]
-            catalog["catalog-service<br/><i>[Partial]</i><br/>dự án, căn hộ, tin đăng"]
-            crm["crm-service<br/><i>[Partial]</i><br/>khách hàng, môi giới, KYC"]
-            txn["transaction-service<br/><i>[Partial]</i><br/>hợp đồng, ký, hóa đơn, hoa hồng"]
-            plat["platform-service<br/><i>[Partial]</i><br/>tệp, job, email, audit, báo cáo"]
-        end
-
-        db[("PostgreSQL 16<br/><i>[Data Tier — Implemented]</i><br/>1 database · 5 schema · 29 bảng · 5 lịch sử Alembic")]
-        redis[("Redis 7<br/><i>[Data Tier — Partial]</i><br/>rate limit, cache, event stream")]
-        store[("Kho tệp riêng tư<br/><i>[Data Tier — Proposed]</i><br/>chỉ platform-service chạm tới")]
+        proxy["Nginx Reverse Proxy<br/><i>[Container · Edge — Skeleton]</i><br/>HTTPS, phục vụ React, chuyển tiếp /api"]
+        web["React Web Application<br/><i>[Container · Presentation Tier — Skeleton]</i><br/>Cổng tin công khai và workspace nội bộ theo vai trò"]
+        api["FastAPI Backend API<br/><i>[Container · Application Tier — Partial]</i><br/>Xác thực, phân quyền, use case, workflow, transaction"]
+        worker["Celery Worker<br/><i>[Container · Application Tier — Skeleton]</i><br/>Outbox dispatcher, email, PDF, nhập/xuất, đối soát"]
+        db[("PostgreSQL 16<br/><i>[Container · Data Tier — Implemented]</i><br/>24 bảng theo ERD, Alembic migration, seed 2.798 bản ghi")]
+        redis[("Redis 7<br/><i>[Container · Data Tier — Partial]</i><br/>Rate limit, cache danh mục/báo cáo, Celery broker")]
+        store[("Kho tệp riêng tư<br/><i>[Container · Data Tier — Proposed]</i><br/>Hợp đồng PDF, chứng từ, tệp xuất")]
     end
 
     kyc["Nhà cung cấp KYC<br/><i>[External System]</i>"]
     mail["Email SMTP / MailHog<br/><i>[External System]</i>"]
 
-    users -->|HTTPS| proxy
+    guest -->|"HTTPS: tìm tin công khai, đăng ký"| proxy
+    customer -->|"HTTPS: KYC, ký, tải PDF, hóa đơn"| proxy
+    agent -->|"HTTPS: tin, hợp đồng, hoa hồng"| proxy
+    admin -->|"HTTPS: danh mục, duyệt, chứng từ, audit"| proxy
+
     proxy -->|"tài nguyên tĩnh"| web
-    proxy -->|"/api · REST/JSON"| gw
-    web -->|"REST/JSON theo OpenAPI"| gw
-
-    gw --> identity
-    gw --> catalog
-    gw --> crm
-    gw --> txn
-    gw --> plat
-
-    identity --> db
-    catalog --> db
-    crm --> db
-    txn --> db
-    plat --> db
-
-    txn -.->|"REST nội bộ · X-Internal-Key"| catalog
-    txn -.->|"REST nội bộ"| crm
-    catalog -.->|"REST nội bộ"| crm
-    crm -.->|"REST nội bộ"| plat
-
-    identity -->|"event_outbox → stream"| redis
-    catalog --> redis
-    crm --> redis
-    txn --> redis
-    redis -->|"consumer group"| plat
-
-    plat -->|"ghi PDF, tệp xuất"| store
-    crm -->|"adapter HTTPS"| kyc
-    kyc -->|"callback đã xác thực"| crm
-    plat -->|"gửi email"| mail
+    proxy -->|"/api · REST/JSON"| api
+    web -->|"REST/JSON theo OpenAPI"| api
+    api -->|"SQLAlchemy async · ACID transaction"| db
+    api -->|"rate limit, cache, enqueue"| redis
+    api -->|"đọc tệp sau khi kiểm tra quyền"| store
+    redis -->|"job đã commit"| worker
+    worker -->|"claim job/outbox, ghi kết quả"| db
+    worker -->|"ghi PDF, tệp xuất"| store
+    api -->|"adapter HTTPS"| kyc
+    kyc -->|"callback đã xác thực"| api
+    worker -->|"gửi email"| mail
 
     classDef partial fill:#1168bd,color:#fff,stroke:#0b4884
     classDef skeleton fill:#6b4f9b,color:#fff,stroke:#463267
     classDef contract fill:#2f855a,color:#fff,stroke:#1f5b3d
     classDef external fill:#777,color:#fff,stroke:#555
-    class identity,catalog,crm,txn,plat,redis,gw,proxy partial
-    class web,store skeleton
+    class api,redis partial
+    class proxy,web,worker,store skeleton
     class db contract
     class kyc,mail external
 ```
 
-Nét liền là phụ thuộc đồng bộ (client phải chờ), nét đứt là lời gọi nội bộ giữa
-service, mũi tên qua Redis là sự kiện bất đồng bộ.
-
 **Container responsibilities and dependency direction**
 
 ```text
-Presentation        Edge                 Application Tier                    Data Tier
-React Web App  →  Nginx  →  API Gateway  ─┬→ identity-service  ─┐
-                                          ├→ catalog-service   ─┤
-                                          ├→ crm-service       ─┼→ PostgreSQL (5 schema)
-                                          ├→ transaction-service┤
-                                          └→ platform-service  ─┘
-                                             │
-                             event_outbox ──→ Redis Streams ──→ consumer group của service nghe
+Presentation Tier      Application Tier                                Data Tier
+React Web App  →  Nginx  →  FastAPI API  ─┬→ service → repository  →  PostgreSQL
+                                          ├→ jobs + outbox (cùng transaction)
+                                          └→ adapter KYC / kho tệp
+                                             ↓
+                            Celery Worker → adapter SMTP / PDF / kho tệp
 ```
 
-- **Nginx:** điểm vào duy nhất từ bên ngoài. Chỉ biết một upstream backend là gateway; trả `404` cho `/internal`. TLS chưa cấu hình vì chưa có domain.
-- **React Web Application:** hiển thị, điều hướng, trạng thái UI; không phải security boundary.
-- **API Gateway:** định tuyến theo tiền tố tài nguyên (`api_gateway/routing.py`), rate limit ở biên — nơi duy nhất còn thấy IP thật của client — và **chặn `X-Internal-Key` đi từ ngoài vào**. Không chứa business rule; nếu gateway bắt đầu "biết" nghiệp vụ thì nó đã thành monolith mới.
-- **Năm service nghiệp vụ:** mỗi service sở hữu đúng một schema và là nơi duy nhất ghi vào bảng của schema đó. Xác thực JWT, kiểm tra permission + scope, thực thi use case, giữ transaction boundary và ghi audit đều nằm trong service sở hữu.
-- **PostgreSQL:** system of record. Một database, 5 schema, FK liên schema được giữ làm lớp chặn cuối; mỗi schema có bảng `alembic_version` riêng.
-- **Redis:** rate limit (đã có), event stream cho sự kiện miền, cache danh mục/báo cáo (đề xuất). Tách namespace giữa ba mục đích để không mất sự kiện.
-- **Kho tệp riêng tư:** chỉ mount vào platform-service; service khác xin URL tải qua API của nó chứ không đọc thẳng đĩa.
+- **Nginx:** điểm vào duy nhất từ bên ngoài và chuyển tiếp `/api`; cấu hình đã có, giữ nguyên `X-Request-ID` của client và sinh mới khi thiếu. TLS chưa cấu hình vì chưa có domain.
+- **React Web Application:** hiển thị, điều hướng, trạng thái UI và gọi API; không phải security boundary, không sở hữu invariant nghiệp vụ.
+- **FastAPI Backend API:** entry point duy nhất cho dữ liệu nghiệp vụ; xác thực JWT, kiểm tra permission + scope, thực thi use case, sở hữu transaction boundary và ghi audit.
+- **Celery Worker:** chỉ xử lý việc đã commit (email, PDF hợp đồng/hóa đơn, nhập/xuất, đối soát job); không nhận request người dùng, không quyết định quyền nghiệp vụ.
+- **PostgreSQL:** system of record cho dữ liệu nghiệp vụ, audit, phiên bản hợp đồng và trạng thái `jobs`/`outbox_events`. Schema đã được tạo bằng Alembic migration đầu tiên, kèm 4 partial unique index và 4 FK ghép làm lớp chặn cuối cho invariant.
+- **Redis:** rate limit (đã có), cache danh mục/báo cáo và Celery broker (đề xuất). Phải tách namespace và chính sách eviction giữa cache và broker để không mất job.
+- **Kho tệp riêng tư:** giữ nội dung tệp; PostgreSQL chỉ giữ metadata `files` và quan hệ tham chiếu để xét quyền tải.
 - Xanh dương là Partial, tím là Skeleton, xanh lá là contract dữ liệu, xám là hệ thống ngoài.
 
 <a id="c4-level-3-web"></a>
@@ -312,12 +284,7 @@ flowchart TB
 
 <a id="c4-level-3-backend"></a>
 
-### 5.3 C4 Level 3 — inside một service nghiệp vụ
-
-Sơ đồ dưới đây mô tả cấu trúc **bên trong một service**, giống nhau ở cả năm:
-`rem_shared` cung cấp pipeline HTTP, phiên database và hợp đồng lỗi; phần riêng
-của service là các module nghiệp vụ. Chiều phụ thuộc trong một module vẫn là
-router → service → repository → model.
+### 5.3 C4 Level 3 — inside FastAPI Backend API
 
 ```mermaid
 flowchart TB
@@ -330,14 +297,14 @@ flowchart TB
     subgraph api["FastAPI Backend API [Application Tier]"]
         direction TB
 
-        subgraph presentation["<pkg>/main.py + rem_shared.middleware + <pkg>/modules/*/router.py — Presentation"]
+        subgraph presentation["app/main.py + app/middleware + app/modules/*/router.py — Presentation"]
             direction LR
             pipeline["HTTP Pipeline<br/><i>[Component — Implemented]</i><br/>request ID, rate limit, audit log, envelope lỗi"]
             authz["Auth Dependency & Permission Guard<br/><i>[Component — Skeleton]</i><br/>JWT, auth_version, permission + scope"]
             routers["Domain Routers<br/><i>[Component — Skeleton]</i><br/>auth, users, roles, projects, properties, listings,<br/>customers, agents, kyc, contracts, invoices,<br/>commissions, reports, audit_logs, notifications"]
         end
 
-        subgraph business["<pkg>/modules/*/service.py + permissions.py — Business Logic"]
+        subgraph business["app/modules/*/service.py + permissions.py — Business Logic"]
             direction LR
             catalogSvc["Catalog & Listing Services<br/><i>[Skeleton]</i><br/>CRUD, duyệt tin, tìm kiếm công khai"]
             partySvc["Identity & Party Services<br/><i>[Skeleton]</i><br/>tài khoản, RBAC, hồ sơ, KYC"]
@@ -347,7 +314,7 @@ flowchart TB
             txPolicy["Transaction, Audit & Outbox Policy<br/><i>[Component — Skeleton]</i><br/>khóa theo thứ tự, row_version, idempotency"]
         end
 
-        subgraph data["<pkg>/modules/*/repository.py + models.py + <pkg>/db.py — Data Access"]
+        subgraph data["app/modules/*/repository.py + models.py + app/core — Data Access"]
             direction LR
             repos["Domain Repositories<br/><i>[Component — Skeleton]</i><br/>truy vấn tham số hóa, khóa bản ghi, update có điều kiện"]
             models["SQLAlchemy Models<br/><i>[Component — Implemented]</i><br/>24 bảng theo ERD, CHECK/UNIQUE/FK ghép khai báo trong model"]
@@ -401,7 +368,7 @@ flowchart TB
     class web,callbacks,db,redis,store external
 ```
 
-Ba **tier runtime** là Presentation (React sau Nginx), Application (gateway + 5 service + tiến trình nền) và Data (PostgreSQL, Redis, kho tệp). Gateway và worker không tạo tier thứ tư. Ba **layer mã nguồn** bên trong mỗi service, theo đúng cây file `<pkg>/modules/<domain>/`:
+Ba **tier runtime** là Presentation (React sau Nginx), Application (FastAPI + Celery worker) và Data (PostgreSQL, Redis, kho tệp). Worker không tạo tier thứ tư. Ba **layer mã nguồn** trong FastAPI, theo đúng cây file `app/modules/<domain>/`:
 
 - `router.py` chỉ chuyển HTTP contract thành lệnh/truy vấn, gọi service và map kết quả sang `schemas.py`; không chứa business rule.
 - `service.py` + `permissions.py` sở hữu use case, kiểm tra permission theo hành động và scope bản ghi, mở transaction, ghi audit và tạo `jobs`/`outbox_events`; không phụ thuộc FastAPI.
@@ -411,19 +378,7 @@ Ba **tier runtime** là Presentation (React sau Nginx), Application (gateway + 5
 
 <a id="c4-level-3-worker"></a>
 
-### 5.4 C4 Level 3 — inside tiến trình nền
-
-Sau khi tách service, mỗi service có tiến trình nền riêng và chúng chạy sau
-profile `workers` của Compose:
-
-- `python -m <pkg>.workers.outbox` — dispatcher đẩy `event_outbox` sang Redis
-  Streams. **Mọi service đều có**, vì service nào cũng có thể phát sự kiện.
-- `python -m <pkg>.workers.events` — consumer group đọc stream của context mà
-  service đó nghe. Chỉ service có người nghe mới có (hiện tại: platform-service).
-- Celery vẫn dùng cho job nặng có trạng thái trong bảng `jobs` (PDF, nhập/xuất),
-  thuộc platform-service và transaction-service.
-
-Sơ đồ dưới là luồng job nền của platform-service.
+### 5.4 C4 Level 3 — inside Celery Worker
 
 ```mermaid
 flowchart LR
@@ -475,104 +430,70 @@ flowchart LR
 
 ### 5.5 Business modules and data ownership
 
-Cột **Service** cho biết tiến trình nào sở hữu bảng. Sau [ADR-011](adr/ADR-011-microservice-decomposition.md),
-ownership rule không còn là quy ước: service khác **không có model** của bảng
-không thuộc về nó, muốn ghi thì phải gọi API của service sở hữu.
-
-| Service | Module | Responsibilities | Canonical tables ([ERD](ERD.md)) | Current evidence |
-|---|---|---|---|---|
-| identity | auth, users, roles | đăng ký/đăng nhập, JWT + `auth_version`, reset mật khẩu, RBAC | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `password_reset_tokens` | SPEC SP-01 + UC-01…UC-04; cây file rỗng |
-| crm | customers, agents | hồ sơ khách và môi giới, scope theo giao dịch | `customers`, `agents` | SPEC SP-01 + UC-09; cây file rỗng |
-| catalog | projects, properties | CRUD dự án/căn hộ, trạng thái căn | `projects`, `properties` | SPEC SP-02 + UC-05/UC-06; cây file rỗng |
-| catalog | listings | tin bán/cho thuê, hàng chờ duyệt, tìm kiếm công khai | `listings` | SPEC SP-02 + UC-07/UC-08; cây file rỗng |
-| crm | kyc | yêu cầu xác thực, callback, thu hồi | `kyc_verifications`, `files` | SPEC SP-03 + UC-10; cây file rỗng |
-| transaction | contracts | phiên bản, các bên, giữ căn, OTP, chữ ký, hủy, PDF | `contracts`, `contract_versions`, `contract_parties`, `signing_challenges`, `contract_signatures`, `files` | SPEC SP-04 + UC-11…UC-15; cây file rỗng |
-| transaction | invoices | chứng từ nội bộ, phát hành, ghi nhận thanh toán | `invoices` | SPEC SP-05 + UC-17; cây file rỗng |
-| transaction | commissions | sinh khi ký đủ, duyệt, ghi nhận chi | `commissions` | SPEC SP-05 + UC-16; cây file rỗng |
-| platform | reports | dashboard, nhập/xuất theo scope | read model trên bảng module khác + `jobs`, `files` | SPEC SP-06 + UC-18…UC-20; cây file rỗng |
-| platform | files | lưu metadata tệp, cấp quyền tải theo quan hệ tham chiếu | `files` | SPEC mục 11 nhóm Nhập/tệp; model đã có, service chưa |
-| platform | audit_logs | tra cứu nhật ký hoạt động | `audit_logs` | SPEC SP-07 + UC-21; middleware audit HTTP đã có, module rỗng |
-| platform | notifications | job, email, outbox | `jobs`, `outbox_events`, `email_deliveries` | SPEC SP-07 + UC-22; cây file rỗng |
-
-Ngoài các bảng trên, mỗi schema có thêm `event_outbox` do `rem_shared.events` cung cấp: sự kiện miền được ghi vào đó **trong cùng transaction** với thay đổi nghiệp vụ, rồi một dispatcher riêng đẩy sang Redis Streams.
+| Module | Responsibilities | Canonical tables ([ERD](ERD.md)) | Current evidence |
+|---|---|---|---|
+| auth, users, roles | đăng ký/đăng nhập, JWT + `auth_version`, reset mật khẩu, RBAC | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `password_reset_tokens` | SPEC SP-01 + UC-01…UC-04; cây file rỗng |
+| customers, agents | hồ sơ khách và môi giới, scope theo giao dịch | `customers`, `agents` | SPEC SP-01 + UC-09; cây file rỗng |
+| projects, properties | CRUD dự án/căn hộ, trạng thái căn | `projects`, `properties` | SPEC SP-02 + UC-05/UC-06; cây file rỗng |
+| listings | tin bán/cho thuê, hàng chờ duyệt, tìm kiếm công khai | `listings` | SPEC SP-02 + UC-07/UC-08; cây file rỗng |
+| kyc | yêu cầu xác thực, callback, thu hồi | `kyc_verifications`, `files` | SPEC SP-03 + UC-10; cây file rỗng |
+| contracts | phiên bản, các bên, giữ căn, OTP, chữ ký, hủy, PDF | `contracts`, `contract_versions`, `contract_parties`, `signing_challenges`, `contract_signatures`, `files` | SPEC SP-04 + UC-11…UC-15; cây file rỗng |
+| invoices | chứng từ nội bộ, phát hành, ghi nhận thanh toán | `invoices` | SPEC SP-05 + UC-17; cây file rỗng |
+| commissions | sinh khi ký đủ, duyệt, ghi nhận chi | `commissions` | SPEC SP-05 + UC-16; cây file rỗng |
+| reports | dashboard, nhập/xuất theo scope | read model trên bảng module khác + `jobs`, `files` | SPEC SP-06 + UC-18…UC-20; cây file rỗng |
+| files | lưu metadata tệp, cấp quyền tải theo quan hệ tham chiếu | `files` | SPEC mục 11 nhóm Nhập/tệp; model đã có, service chưa |
+| audit_logs | tra cứu nhật ký hoạt động | `audit_logs` | SPEC SP-07 + UC-21; middleware audit HTTP đã có, module rỗng |
+| notifications | job, email, outbox | `jobs`, `outbox_events`, `email_deliveries` | SPEC SP-07 + UC-22; cây file rỗng |
 
 **Ownership rule:** mỗi bảng có đúng một module được ghi. Module khác đọc qua service của module chủ sở hữu, không dùng bảng của nhau như API ngầm. Ba trường hợp quan trọng nhất:
 
-- `properties.status` chỉ đổi như **hệ quả** của luồng hợp đồng (`available → reserved → sold/rented`, hoặc về `available` khi hủy). Module properties không cho sửa trạng thái này qua CRUD. Sau khi tách service, hệ quả này **vượt ranh giới tiến trình**: transaction-service phát `transaction.contract.signed`, catalog-service nghe và đổi trạng thái căn. Đây là eventual consistency, không còn là một transaction — cái giá đã ghi rõ ở [ADR-011](adr/ADR-011-microservice-decomposition.md).
-- `listings.status` do module listings sở hữu; chuyển `closed` khi ký đủ cũng đi qua cùng sự kiện đó, không phải do transaction-service ghi thẳng vào `catalog.listings`.
-- `commissions` chỉ được module commissions tạo từ sự kiện ký đủ, snapshot `base/rate/amount` và `contract_version_id` từ phiên bản đã ký; không tính lại về sau. Cả hợp đồng và hoa hồng đều ở transaction-service nên phần này **vẫn trong một transaction ACID** — đó là lý do ranh giới service được cắt ở đây.
+- `properties.status` chỉ đổi như **hệ quả** của luồng hợp đồng (`available → reserved → sold/rented`, hoặc về `available` khi hủy). Module properties không cho sửa trạng thái này qua CRUD.
+- `listings.status` do module listings sở hữu, nhưng chuyển `closed` khi ký đủ là do module contracts thực hiện trong cùng transaction ký.
+- `commissions` chỉ được module commissions tạo từ sự kiện ký đủ, snapshot `base/rate/amount` và `contract_version_id` từ phiên bản đã ký; không tính lại về sau.
 
-Chiều phụ thuộc nghiệp vụ là contracts → (listings, properties, customers, agents, kyc) theo hướng đọc và ra lệnh, không có vòng ngược. Chiều phụ thuộc giữa các service khớp với chiều đó và cũng không có vòng: identity ← platform ← crm ← catalog ← transaction. PostgreSQL không có C4 Component diagram riêng vì đây là data-store container; nội dung bên trong được mô hình hóa bằng [ERD](ERD.md).
+Chiều phụ thuộc nghiệp vụ là contracts → (listings, properties, customers, agents, kyc) theo hướng đọc và ra lệnh, không có vòng ngược. PostgreSQL không có C4 Component diagram riêng vì đây là data-store container; nội dung bên trong được mô hình hóa bằng [ERD](ERD.md).
 
 ### 5.6 Target code structure
 
 ```text
 src/backend/
-├── libs/rem-shared/                   # Implemented — thư viện hạ tầng dùng chung
-│   └── rem_shared/
-│       ├── config.py                  #   BaseServiceSettings: mọi service kế thừa
-│       ├── db/{base,session,mixins,external}.py
-│       │                              #   Base theo schema, engine/session, mixin cột,
-│       │                              #   stub bảng của service khác cho FK liên schema
-│       ├── middleware/                #   request_id, rate_limit, audit, error_handler
-│       ├── security/{password,tokens,internal}.py
-│       │                              #   băm mật khẩu, JWT, xác thực lời gọi nội bộ
-│       ├── events/{envelope,outbox,publisher,consumer,topics}.py
-│       │                              #   envelope sự kiện, outbox giao dịch,
-│       │                              #   dispatcher và consumer Redis Streams
-│       ├── http/client.py             #   ServiceClient cho lời gọi service-to-service
-│       ├── logging.py                 #   log JSON kèm service + request_id, có redaction
-│       ├── service_app.py             #   create_service_app: /health, /ready, middleware
-│       ├── testing.py                 #   fixture pytest dùng chung
-│       ├── {enums,schemas,utils,permissions,constants}
-│       └── tests/unit/test_middleware.py   # Implemented — 5 test cho pipeline HTTP
-│
-├── services/<tên>-service/            # 5 service nghiệp vụ, cùng một khuôn
-│   ├── <pkg>/main.py                  # Implemented — dựng app qua create_service_app
-│   ├── <pkg>/config.py                # Implemented — Settings riêng của service
-│   ├── <pkg>/db.py                    # Implemented — Base gắn schema, FK ngoài, engine
-│   ├── <pkg>/models.py                # Implemented — tập hợp model + event_outbox
-│   ├── <pkg>/dependencies.py          # Implemented — session, principal, require_permission
-│   ├── <pkg>/api/{router,internal}.py # Implemented — chỗ gắn router công khai và /internal
-│   ├── <pkg>/clients/__init__.py      # Implemented — client tới service phụ thuộc
-│   ├── <pkg>/events/{publishers,handlers}.py
-│   ├── <pkg>/workers/{outbox,events}.py     # Implemented — entrypoint tiến trình nền
-│   ├── <pkg>/modules/<domain>/models.py     # Implemented — model theo ERD
-│   ├── <pkg>/modules/<domain>/{router,service,repository,schemas,permissions,exceptions}.py
-│   │                                  # Skeleton — rỗng, là phần việc của Phase 2 trở đi
-│   ├── migrations/                    # Implemented — env.py riêng + initial schema
-│   ├── tests/conftest.py              # Implemented — fixture cho schema của service
-│   ├── Dockerfile · requirements.txt · alembic.ini · .env.example
-│   └── (api-gateway: thêm routing.py, proxy.py; không có models/migrations)
-│
-├── services/                          # identity · catalog · crm · transaction · platform
-│                                      # + api-gateway
-├── requirements/{base,dev}.txt        # Implemented — đã pin, dùng chung mọi service
-├── pyproject.toml                     # Implemented — ruff, mypy, pytest, coverage cho cả monorepo
+├── app/main.py                       # Implemented — FastAPI app, /health, đăng ký middleware
+├── app/core/{config,database}.py      # Implemented — settings, async engine/session
+├── app/core/security.py               # Partial — băm mật khẩu xong, JWT thuộc Phase 2
+├── app/core/{permissions,exceptions,logging,constants}.py            # Skeleton — rỗng
+├── app/middleware/                    # Implemented — request_id, rate_limit, audit, error_handler
+├── app/common/{mixins.py,enums/}      # Implemented — mixin cột chung và tập trạng thái
+├── app/models.py                      # Implemented — tập hợp 24 model cho Alembic
+├── app/modules/<domain>/models.py     # Implemented — 24 bảng theo ERD (15 module)
+├── app/modules/<domain>/{router,service,repository,schemas,permissions,exceptions}.py
+│                                      # Skeleton — rỗng, là phần việc của Phase 2 trở đi
+├── migrations/                        # Implemented — env.py async + migration đầu tiên
+├── app/integrations/{kyc,email,pdf,file_storage}/service.py          # Skeleton — rỗng
+├── app/workers/{celery,email_tasks,contract_tasks,report_tasks}.py   # Skeleton — rỗng
+├── app/common/{schemas,utils,enums}/  # Skeleton — rỗng
 ├── scripts/seed.py                    # Implemented — seed 2.798 bản ghi + 3 tài khoản demo
 ├── scripts/create_admin.py            # Skeleton — rỗng
-└── tests/                             # Implemented — 13 test invariant **liên schema**
-                                       #   (cần cả 5 service đã migrate)
+├── tests/conftest.py                  # Implemented — fixture DB test, chạy migration một lần
+├── tests/unit/test_middleware.py      # Implemented — 5 test cho pipeline HTTP
+├── tests/integration/                 # Implemented — 13 test invariant database
+├── alembic.ini                        # Implemented
+├── pyproject.toml                     # Implemented — ruff, mypy, pytest, coverage
+└── requirements{,-dev}.txt            # Implemented — đã pin phiên bản
 
 src/frontend/                          # Skeleton — template Vite/React 19 mặc định
-infrastructure/nginx/nginx.conf        # Implemented — proxy tới api-gateway, chặn /internal
-docker-compose.yml                     # Implemented — postgres, redis, 5 service, gateway,
-                                       #   frontend, nginx, mailhog; 9 tiến trình nền
-                                       #   sau profile "workers"
-.github/workflows/ci.yaml              # Implemented — lint, test+coverage, build ma trận 6
-                                       #   image, compose smoke
-docs/adr/ADR-011-*.md                  # Implemented — quyết định tách microservice
+infrastructure/nginx/nginx.conf        # Implemented — proxy /api, /docs và React
+docker-compose.yml                     # Implemented — postgres, redis, api, frontend, nginx,
+                                       #               mailhog; worker sau profile "worker"
+.github/workflows/ci.yaml              # Implemented — lint, test+coverage, build, compose smoke
 docs/{PRD,SPEC,ERD,USE_CASES}.md       # Implemented — đặc tả đã hoàn chỉnh
+docs/{API,DEPLOYMENT}.md               # Proposed — chưa tồn tại trong repo
 ```
 
-Hai quy ước đáng chú ý trong cây trên:
+`tests/integration/` là điều kiện bắt buộc trước vertical slice đầu tiên: các invariant quan trọng nhất (một tin `pending/approved` mỗi căn, một hợp đồng giữ căn, một chữ ký mỗi bên, một `commissions` mỗi hợp đồng, challenge thuộc đúng party) là partial unique index và FK ghép ở PostgreSQL, không thể kiểm chứng bằng repository giả lập.
 
-- **Package của mỗi service mang tên riêng** (`identity_service`, `catalog_service`, …) chứ không phải `app`. Năm package cùng tên `app` sẽ không import được trong cùng một tiến trình, mà bộ test invariant liên schema ở `src/backend/tests/` cần đúng điều đó.
-- **`libs/rem-shared` không chứa business rule và không chứa model nghiệp vụ.** Đặt một model vào đó sẽ biến thư viện thành điểm ghép nối giữa các bounded context, đúng thứ mà [ADR-011](adr/ADR-011-microservice-decomposition.md) muốn tránh.
+Còn một điểm trùng lặp cần dọn: `app/config.py` tồn tại song song với `app/core/config.py` (file ngoài rỗng). `.env.example` ở gốc repo đã được viết và là nguồn biến cho compose.
 
-`src/backend/tests/` là điều kiện bắt buộc trước vertical slice đầu tiên: các invariant quan trọng nhất (một tin `pending/approved` mỗi căn, một hợp đồng giữ căn, một chữ ký mỗi bên, một `commissions` mỗi hợp đồng, challenge thuộc đúng party) là partial unique index và FK ghép ở PostgreSQL, không thể kiểm chứng bằng repository giả lập. Chúng trải trên nhiều schema nên bộ test này chạy sau khi cả 5 migration đã áp.
-
-Một use case mới nằm trong module sở hữu nghiệp vụ, kèm service, permission và test. Không đặt business rule trong router, trong gateway, trong component React hay trong trigger DB tổng quát.
+Một use case mới nằm trong module sở hữu nghiệp vụ, kèm service, permission và test. Không đặt business rule trong router, component React hay trigger DB tổng quát.
 
 ---
 
@@ -723,56 +644,49 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    subgraph edge["Edge"]
-        proxy["Nginx · TLS (Proposed) · phục vụ React build"]
-        gw["api-gateway (uvicorn)"]
+    subgraph edge["Edge — Proposed"]
+        proxy["Nginx · TLS · rate limit biên<br/>phục vụ React build, chuyển tiếp /api"]
     end
 
     subgraph app["Application Zone — Docker Compose"]
-        svc["identity · catalog · crm · transaction · platform<br/>mỗi service 1 container uvicorn"]
-        outbox["5 × outbox dispatcher<br/><i>profile workers</i>"]
-        events["4 × event consumer<br/><i>profile workers</i>"]
+        api["FastAPI (uvicorn)<br/><i>container api</i>"]
+        worker["Celery worker<br/><i>container worker</i>"]
     end
 
     subgraph data["Data Zone — Docker Compose"]
-        pg[("PostgreSQL 16 · volume postgres_data<br/>1 database · 5 schema")]
-        redis[("Redis 7 · rate limit + event stream")]
-        files[("Kho tệp riêng tư · volume file_storage")]
+        pg[("PostgreSQL 16<br/>volume postgres_data")]
+        redis[("Redis 7")]
+        files[("Kho tệp riêng tư<br/>volume hoặc S3-compatible — Proposed")]
     end
 
     dev["MailHog<br/><i>chỉ môi trường dev</i>"]
-    ops["Migration theo thứ tự, seed, log JSON, /health, /ready"]
+    ops["Migration, seed, log, /health"]
 
-    proxy --> gw
-    gw --> svc
-    svc --> pg
-    svc --> redis
-    svc --> files
-    outbox --> pg
-    outbox --> redis
-    events --> redis
-    events --> pg
-    events --> dev
-    ops -.-> svc
+    proxy --> api
+    api --> pg
+    api --> redis
+    api --> files
+    worker --> pg
+    worker --> redis
+    worker --> files
+    worker --> dev
+    ops -.-> api
+    ops -.-> worker
 ```
 
 **Deployment rules**
 
 | Rule | Reason |
 |---|---|
-| Trình duyệt chỉ tới Nginx; gateway là upstream backend duy nhất của Nginx | một bảng định tuyến, không nhân đôi ở hai nơi |
-| `/internal` không bao giờ ra Internet: Nginx trả `404`, gateway không chuyển tiếp, và service yêu cầu `X-Internal-Key` | ba lớp chặn cho API service-to-service |
-| Gateway **xóa** `X-Internal-Key` đến từ client trước khi chuyển tiếp | nếu không, client tự đặt header là đi thẳng qua mọi kiểm tra nội bộ |
-| Cổng của từng service (8001–8005) chỉ mở khi dev; sản phẩm thật không expose | tránh đường vòng qua gateway và qua rate limit biên |
-| Migration Alembic chạy như bước riêng, **đúng thứ tự** identity → platform → crm → catalog → transaction | FK liên schema cần bảng đích tồn tại trước; thứ tự ngược lại khi downgrade |
-| Thay đổi nghiệp vụ và `jobs`/`outbox_events`/`event_outbox` nằm trong cùng transaction | không mất side effect và không phát sự kiện cho thứ đã rollback |
-| Bí mật lấy từ biến môi trường; `JWT_SECRET_KEY` và `INTERNAL_API_KEY` không có giá trị mặc định | thiếu là service dừng khi khởi động, thay vì chạy với secret ai cũng đoán được |
-| `/health` là liveness (không chạm phụ thuộc); `/ready` kiểm tra PostgreSQL và Redis, trả `503` khi chưa sẵn sàng | Postgres chậm không nên làm orchestrator giết container, nhưng cũng không nên nhận traffic |
-| Rate limit chỉ bật ở gateway, tắt ở service phía sau | service chỉ thấy IP của gateway; bật ở đó sẽ chặn nhầm toàn bộ người dùng |
-| Tiến trình nền chạy tách khỏi tiến trình HTTP, có thể nhiều bản sao | `FOR UPDATE SKIP LOCKED` ở outbox và consumer group ở Redis đều an toàn khi chạy song song |
+| Trình duyệt chỉ tới Nginx; PostgreSQL, Redis và kho tệp không public | giảm bề mặt tấn công, ngăn client bỏ qua API |
+| Migration Alembic chạy như bước riêng trước khi app nhận traffic, không auto-create schema | kiểm soát tương thích và rollback |
+| Thay đổi nghiệp vụ và `jobs`/`outbox_events` nằm trong cùng transaction | không mất side effect sau commit |
+| Bí mật lấy từ biến môi trường theo môi trường, không commit | `.env` hiện có trong repo phải giữ ngoài git và đổi `JWT_SECRET_KEY` mặc định |
+| `/health` là liveness; `/ready` (đề xuất) kiểm tra PostgreSQL/Redis và trả `503` khi chưa sẵn sàng | không route traffic vào instance chưa dùng được |
+| Worker có heartbeat/đối soát riêng | API sống không chứng minh job đang được xử lý |
 | Seed ≥ 2.000 bản ghi và ba tài khoản demo chạy được sau migration | điều kiện nghiệm thu NFR-06 và đo hiệu năng NFR-04 |
 
-`make up` dựng 11 container (postgres, redis, 5 service, gateway, frontend, nginx, mailhog); `make workers` thêm 9 tiến trình nền (5 outbox dispatcher + 4 event consumer; identity chưa nghe sự kiện của service nào). `make ready` gọi `/ready` của từng service để biết phụ thuộc nào đang hỏng.
+Trạng thái thực tế của Compose: `docker-compose.yml` ở gốc repo khai báo 5 service (postgres, redis, api, worker, mailhog) nhưng dùng `build.context: ./backend` và mount `./backend:/app`, trong khi backend nằm ở `src/backend` — Compose hiện **không build được** cho tới khi sửa path. Ngoài ra chưa có service Nginx/frontend trong Compose và `infrastructure/nginx/nginx.conf` còn rỗng, nên topology ở sơ đồ là đích cần đạt, không phải cấu hình đang chạy.
 
 ---
 
@@ -807,19 +721,18 @@ flowchart TB
 
 | ADR | Decision | Status |
 |---|---|---|
-| ADR-001 | Modular monolith FastAPI theo `app/modules/<domain>/`, ba tier React – FastAPI – PostgreSQL | **Superseded 21/09/2026 bởi [ADR-011](adr/ADR-011-microservice-decomposition.md)** |
+| ADR-001 | Modular monolith FastAPI theo `app/modules/<domain>/`, ba tier React – FastAPI – PostgreSQL | Accepted — có trong README, cây source và Compose |
 | ADR-002 | PostgreSQL là system of record; [ERD](ERD.md) là schema contract, migration bằng Alembic | Accepted 17/09/2026 — migration đầu tiên đã áp dụng được trên database sạch |
 | ADR-003 | Backend thực thi authorization theo hành động và phạm vi bản ghi; UI không phải security boundary | Accepted theo [PRD §3](PRD.md) và [SP-01](SPEC.md) |
-| ADR-004 | Envelope lỗi `{error, request_id}` với mã nghiệp vụ ổn định; OpenAPI sinh từ FastAPI, gateway chỉ cung cấp chỉ mục | Accepted — đã Implemented trong `rem_shared/middleware/error_handler.py`, dùng chung cho cả 6 container |
+| ADR-004 | Envelope lỗi `{error, request_id}` với mã nghiệp vụ ổn định; OpenAPI sinh từ FastAPI | Accepted — đã Implemented trong `app/middleware/error_handler.py` |
 | ADR-005 | JWT bearer 15 phút, không refresh token, thu hồi bằng `auth_version` | Proposed |
 | ADR-006 | Ký hợp đồng bằng OTP email trên phiên bản đã đóng băng, hai bên theo A-02 | Proposed |
 | ADR-007 | Giữ căn bằng partial unique index + khóa theo thứ tự cố định thay vì chỉ kiểm tra ở tầng ứng dụng | Proposed |
 | ADR-008 | `jobs` + `outbox_events` trong PostgreSQL, Celery/Redis chỉ là phương tiện vận chuyển | Proposed |
 | ADR-009 | Adapter cho KYC/SMTP/PDF/kho tệp, chế độ demo có nhãn; PDF dùng WeasyPrint, nhà cung cấp KYC chưa chọn | Proposed |
-| ADR-010 | Redis dùng chung cho rate limit, cache và broker, tách namespace; fail closed cho route nhạy cảm | Accepted một phần — rate limit đã Implemented, cache chưa |
-| [ADR-011](adr/ADR-011-microservice-decomposition.md) | Tách backend thành 5 microservice theo bounded context + api-gateway; một database nhiều schema, giữ FK liên schema; REST đồng bộ cho truy vấn, Redis Streams cho sự kiện | Accepted 21/09/2026 — cây source, Compose, CI và 5 lịch sử migration đã theo |
+| ADR-010 | Redis dùng chung cho rate limit, cache và broker, tách namespace; fail closed cho route nhạy cảm | Accepted một phần — rate limit đã Implemented, cache/broker chưa |
 
-**Open decisions:** nhà cung cấp KYC; kho tệp là volume hay S3-compatible; hosting và HTTPS thật; chính sách sao lưu/RPO/RTO; chính sách lưu và xóa dữ liệu KYC; thông báo in-app; 2FA đăng nhập (FR-18, P1); JWT chuyển sang cặp khóa bất đối xứng; tách `reports` thành read model riêng; chính sách phát lại sự kiện từ DLQ.
+**Open decisions:** nhà cung cấp KYC; kho tệp là volume hay S3-compatible; hosting và HTTPS thật; chính sách sao lưu/RPO/RTO; chính sách lưu và xóa dữ liệu KYC; thông báo in-app; 2FA đăng nhập (FR-18, P1).
 
 Không ADR nào chuyển sang Accepted chỉ vì công nghệ đã xuất hiện trong `requirements.txt`, Compose hay sơ đồ. ADR Accepted phải có owner, ngày phê duyệt, alternatives và consequences.
 
@@ -869,32 +782,28 @@ Các ngưỡng chưa được đo trên môi trường thật là **provisional*
 
 ## 12. Architecture Fitness Functions
 
-Các gate dưới đây là target bắt buộc. Gate chưa có job chạy được vẫn giữ trạng thái Planned.
+Các gate dưới đây là target bắt buộc. CI hiện chỉ là workflow placeholder, nên mọi gate chưa có job chạy được vẫn giữ trạng thái Planned.
 
 | Test / Gate | Rule enforced | Fails when | Status / planned location |
 |---|---|---|---|
 | `FrontendCannotAccessDatabase` | C2, §5.1 | frontend có dependency/import driver DB hoặc connection string | Planned — `tests/architecture` |
 | `LayersPointInward` | §5.3 | `service.py` import FastAPI/SQLAlchemy driver, hoặc `repository.py` import router | Planned — `tests/architecture` |
-| `NoCrossServiceModelImport` | §5.5, ADR-011 | một service import model của service khác, hoặc `rem_shared` chứa model nghiệp vụ | Planned — `tests/architecture` |
-| `ServiceDependencyGraphIsAcyclic` | §5.5, ADR-011 | `<pkg>/clients` tạo vòng phụ thuộc đồng bộ giữa các service | Planned — `tests/architecture` |
-| `InternalRoutesAreNotPublic` | §7, Q1 | router dưới `/internal` thiếu `require_internal_caller`, hoặc gateway chuyển tiếp `X-Internal-Key` từ client | Planned — security tests |
-| `NoCrossModuleTableWrites` | §5.5 | module ghi trực tiếp bảng do module khác sở hữu | **Available một phần** — service không còn model của bảng ngoài schema mình; phần trong cùng service vẫn cần test |
+| `NoCrossModuleTableWrites` | §5.5 | module ghi trực tiếp bảng do module khác sở hữu | Planned — architecture/integration tests |
 | `EveryBusinessEndpointRequiresAuthorization` | Q1 | router nghiệp vụ thiếu dependency actor/permission | Planned — security tests |
 | `RestrictedFieldsAreAllowlisted` | Q1, Q4 | response/export chứa `internal_terms`, hoa hồng hoặc KYC thô cho vai trò không được phép | Planned — contract tests |
 | `EveryStateChangeUsesACommand` | Q3 | schema cho phép client gửi `status`, `signed_at`, `paid_at` | Planned — contract tests |
 | `EveryCommandWritesAudit` | Q2 | lệnh nhạy cảm commit mà không có `audit_logs` cùng transaction | Planned — integration tests |
 | `PropertyHoldIsExclusive` | Q2, QR2 | hai hợp đồng cùng giữ một căn | **Available một phần** — `tests/integration/test_schema_invariants.py`; phần căn `reserved` với hợp đồng `draft` cần service ở Phase 6 |
 | `SigningIsIdempotent` | Q5, QR3 | ký lặp tạo thêm chữ ký, hoa hồng hoặc job PDF | Planned — integration tests |
-| `OutboxIsAtomicWithBusinessChange` | Q5 | commit nghiệp vụ mà thiếu `jobs`/`outbox_events`/`event_outbox` hoặc ngược lại | Planned — DB integration tests |
-| `EventHandlersAreIdempotent` | Q5, ADR-011 | giao lại cùng một `event_id` tạo side effect lần hai | Planned — integration tests |
+| `OutboxIsAtomicWithBusinessChange` | Q5 | commit nghiệp vụ mà thiếu `jobs`/`outbox_events` hoặc ngược lại | Planned — DB integration tests |
 | `KycCallbackConformance` | QR5 | callback giả/lặp/cũ làm đổi trạng thái KYC | Planned — integration conformance tests |
 | `ImportIsAllOrNothing` | QR7 | một dòng lỗi vẫn ghi được bản ghi nghiệp vụ | Planned — integration tests |
-| `MigrationsApplyOnCleanDatabase` | C4 | `alembic upgrade head` của một trong 5 service fail hoặc lệch model | **Available** — job `test` của CI chạy `downgrade base` rồi `upgrade head` cho cả 5, đúng thứ tự phụ thuộc |
+| `MigrationsApplyOnCleanDatabase` | C4 | `alembic upgrade head` fail hoặc lệch model | **Available** — job `test` của CI chạy `downgrade base` rồi `upgrade head` |
 | `NoSensitiveDataInLogs` | Q4, §8 | log chứa token, OTP, mật khẩu hoặc giấy tờ KYC | Planned — security tests |
 | `ReadPerformanceBudget` | Q6, QR9 | list/search vượt p95 2 giây với dữ liệu seed | Planned — performance job |
 | `CoverageGate` | Q8, NFR-05 | coverage backend dưới 40% line | **Available** — `pytest --cov-fail-under=40`, hiện 92,9% |
-| `ComposeSmokeTest` | R2, Q8 | `docker compose up` không dựng được 5 service, gateway hoặc db; `/ready` của service nào đó trả 503 | **Available** — job `smoke` của CI |
-| `HttpPipelineContract` | ADR-004, ADR-010 | envelope lỗi, request ID hoặc rate limit fail-closed sai hành vi | **Available** — `src/backend/libs/rem-shared/tests/unit/test_middleware.py` |
+| `ComposeSmokeTest` | R2, Q8 | `docker compose up` không dựng được api/db | **Available** — job `smoke` của CI |
+| `HttpPipelineContract` | ADR-004, ADR-010 | envelope lỗi, request ID hoặc rate limit fail-closed sai hành vi | **Available** — `src/backend/tests/unit/test_middleware.py` |
 
 Một rule chỉ được đánh dấu **Enforced** khi test/job thực sự tồn tại, có thể fail và là required trong CI.
 
