@@ -4,7 +4,7 @@
 | --- | --- |
 | Phiên bản | 1.0 — bản đề xuất để review, 17/09/2026 |
 | Căn cứ | [PRD](PRD.md), [SPEC](SPEC.md), [ERD](ERD.md), [USE_CASES](USE_CASES.md), [ARCHITECTURE](ARCHITECTURE.md), khảo sát repository |
-| Trạng thái | Phase 0 và Phase 1 đã hoàn thành và kiểm chứng; xem Nhật ký thực hiện ở mục 9 |
+| Trạng thái | Phase 0–3 đã hoàn thành và kiểm chứng; xem Nhật ký thực hiện ở mục 9 |
 | Giả định nhân lực | 1 người làm chính; ước lượng theo **ngày công**, không phải ngày lịch |
 | Tổng ước lượng | 62–83 ngày công (chi tiết ở mục 6) |
 
@@ -65,14 +65,14 @@ Bốn blocker phải xử lý trước mọi việc khác:
 
 Điều kiện tiên quyết: Gate 1. Bao phủ FR-01, FR-02, FR-07 (một phần), FR-16.
 
-- [ ] **2.1** `core/security.py`: băm mật khẩu, tạo/giải mã JWT với `sub/exp/iat/auth_version`.
-- [ ] **2.2** `core/permissions.py` + `dependencies.py`: registry permission, `get_current_user` (kiểm `status`, `deleted_at`, `auth_version`), `require_permission`, helper scope bản ghi.
-- [ ] **2.3** `core/exceptions.py` map lỗi nghiệp vụ sang `AppError` sẵn có; `core/logging.py` structured log + redaction mật khẩu/token/OTP.
-- [ ] **2.4** Module `auth`: `register`, `token`, `logout` (tăng `auth_version`), `password-reset/request`, `password-reset/confirm`, `GET/PATCH /me`.
-- [ ] **2.5** Module `users` + `roles`: Admin tạo tài khoản môi giới kèm hồ sơ, gán role, `lock`/`unlock`, cập nhật có `row_version`.
-- [ ] **2.6** Module `customers` + `agents`: hồ sơ, scope "khách trong giao dịch phụ trách" theo [SP-01](SPEC.md).
-- [ ] **2.7** Module `audit_logs`: service ghi audit **trong cùng transaction** nghiệp vụ + API tra cứu có phân trang.
-- [ ] **2.8** Cấu hình rate limit cho `login`/`reset` vào middleware đã có; xác nhận route nhạy cảm fail closed.
+- [x] **2.1** `core/security.py`: băm mật khẩu, tạo/giải mã JWT với `sub/exp/iat/auth_version`.
+- [x] **2.2** `core/permissions.py` + `dependencies.py`: registry permission, `get_current_user` (kiểm `status`, `deleted_at`, `auth_version`), `require_permission`, helper scope bản ghi.
+- [x] **2.3** `core/exceptions.py` map lỗi nghiệp vụ sang `AppError` sẵn có; `core/logging.py` structured log + redaction mật khẩu/token/OTP.
+- [x] **2.4** Module `auth`: `register`, `token`, `logout` (tăng `auth_version`), `password-reset/request`, `password-reset/confirm`, `GET/PATCH /me`.
+- [x] **2.5** Module `users` + `roles`: Admin tạo tài khoản môi giới kèm hồ sơ, gán role, `lock`/`unlock`, cập nhật có `row_version`.
+- [x] **2.6** Module `customers` + `agents`: hồ sơ, scope "khách trong giao dịch phụ trách" theo [SP-01](SPEC.md).
+- [x] **2.7** Module `audit_logs`: service ghi audit **trong cùng transaction** nghiệp vụ + API tra cứu có phân trang.
+- [x] **2.8** Cấu hình rate limit cho `login`/`reset` vào middleware đã có; xác nhận route nhạy cảm fail closed.
 
 **Gate 2:** T-01, T-02 (phần hồ sơ), T-13 pass; 3 tài khoản demo đăng nhập đúng quyền; token cũ bị từ chối sau logout/khóa/đổi role; payload `role` do client gửi bị bỏ qua.
 
@@ -80,12 +80,12 @@ Bốn blocker phải xử lý trước mọi việc khác:
 
 Điều kiện tiên quyết: Gate 2. Bao phủ FR-03, FR-04, FR-05, FR-06 và một phần NFR-03.
 
-- [ ] **3.1** Module `projects`: CRUD, soft-delete, chặn xóa khi còn căn chưa xóa, chặn `inactive` khi có căn `reserved`.
-- [ ] **3.2** Module `properties`: CRUD trong dự án, chặn sửa trạng thái `reserved/sold/rented` bằng tay, chặn xóa khi có tin/hợp đồng hoạt động.
-- [ ] **3.3** Module `listings`: 6 lệnh `submit/withdraw/approve/reject/edit/close` theo bảng chuyển trạng thái [SP-02](SPEC.md), lưu `reviewed_by/reviewed_at/rejection_reason`.
-- [ ] **3.4** Endpoint public `GET /public/listings`, `/public/listings/{id}` với projection công khai; validate bộ lọc giá theo `sale/rent`.
-- [ ] **3.5** Cache Redis cho danh mục dự án/địa bàn + invalidate sau commit; tách namespace khỏi broker.
-- [ ] **3.6** Test T-03 và ranh giới quyền: môi giới không duyệt được tin, không sửa tin người khác.
+- [x] **3.1** Module `projects`: CRUD, soft-delete, chặn xóa khi còn căn chưa xóa, chặn `inactive` khi có căn `reserved`.
+- [x] **3.2** Module `properties`: CRUD trong dự án, chặn sửa trạng thái `reserved/sold/rented` bằng tay, chặn xóa khi có tin/hợp đồng hoạt động.
+- [x] **3.3** Module `listings`: 6 lệnh `submit/withdraw/approve/reject/edit/close` theo bảng chuyển trạng thái [SP-02](SPEC.md), lưu `reviewed_by/reviewed_at/rejection_reason`.
+- [x] **3.4** Endpoint public `GET /public/listings`, `/public/listings/{id}` với projection công khai; validate bộ lọc giá theo `sale/rent`.
+- [x] **3.5** Cache Redis cho danh mục dự án/địa bàn + invalidate sau commit; tách namespace khỏi broker.
+- [x] **3.6** Test T-03 và ranh giới quyền: môi giới không duyệt được tin, không sửa tin người khác.
 
 **Gate 3:** T-03 pass; biết UUID tin `draft` vẫn không đọc được qua API public; đo p95 sơ bộ của `/public/listings` trên seed 2.000 bản ghi.
 
@@ -304,11 +304,58 @@ Thiếu mục 6 thì coi như chưa xong: [PRD §3](PRD.md) ghi rõ ẩn nút tr
 6. **Cổng publish ở máy phát triển được đổi** trong `.env` cục bộ (`55432`, `56379`, `58000`, `55173`, `58080`) vì 5432/6379/8000 đang bị một project khác chiếm. Cổng trong mạng nội bộ compose không đổi.
 7. **`users.locked_at` là cột mới** so với bản ERD trước; đã bổ sung vào từ điển dữ liệu ERD mục 4.
 
-### Việc còn treo trước khi mở Phase 2
+### Việc còn treo sau Phase 1 — trạng thái
 
-- Chưa chạy thử CI thật trên GitHub Actions; workflow mới được viết và chỉ được kiểm chứng gián tiếp bằng cách chạy đúng các lệnh đó trong container.
-- `docs/API.md` và `docs/DEPLOYMENT.md` vẫn chưa tồn tại (thuộc task 10.4, 10.5).
-- Rate limit hiện cấu hình cho `/auth/token` và `/auth/password-reset/request` không có tiền tố `/api/v1`; task 2.8 phải cập nhật khi router thật được mount.
+- Rate limit `/auth/token` và `/auth/password-reset/request` đã dùng tiền tố `/api/v1` (đóng ở Phase 2).
+- CI thật trên GitHub Actions vẫn chưa chạy.
+- `docs/API.md` và `docs/DEPLOYMENT.md` vẫn thuộc task 10.4, 10.5.
+
+### Phase 2 — hoàn thành 25/09/2026
+
+| Việc | Bằng chứng |
+| --- | --- |
+| T-01 | `test_auth_flow.py`: đăng ký bỏ qua role client gửi, reset dùng một lần, JWT cũ bị thu hồi sau logout/reset |
+| T-02 (hồ sơ) | `test_rbac_scope.py`: môi giới chỉ thấy khách trong scope, ngoài scope trả 404 |
+| T-13 | `test_audit_logs.py`: audit đúng actor, không chứa secret, router chỉ đọc |
+| Token bị thu hồi | Sau logout/khóa (pytest) và sau đổi role (Postman) token cũ trả 401 |
+| Kiểm thử API | Postman collection `postman/` chạy bằng Postman CLI, lịch sử ở tab Runs và `postman/history.csv` |
+
+Sửa trong lúc kiểm thử:
+
+1. Tài khoản demo đổi từ `@demo.local` sang `@demo.com`: `email-validator` từ chối tên miền dành riêng nên tài khoản demo không gọi được quên mật khẩu.
+2. `GET /me` trả thêm `row_version`, trước đó client không có giá trị để gửi `PATCH /me`.
+3. Rate limit sau Nginx: uvicorn không tin `X-Forwarded-For` nên mọi request qua Nginx chung một bucket IP. Compose cố định IP Nginx (`NGINX_IP`), api chỉ tin header từ IP đó (`FORWARDED_ALLOW_IPS`), Nginx ghi đè `X-Forwarded-For $remote_addr`.
+
+### Phase 3 — hoàn thành 25/09/2026
+
+| Việc | Bằng chứng |
+| --- | --- |
+| API | `projects`, `properties`, `listings` (6 lệnh trạng thái), `GET /public/listings`, `/public/listings/{id}`, `/public/catalog` |
+| T-03 | `test_public_listings.py`: tin draft/pending/rejected/closed trả 404 dù biết UUID; căn reserved hoặc dự án inactive bị ẩn; lọc giá/sắp xếp giá bắt buộc chọn bán hoặc thuê |
+| Quyền (3.6) | `test_listings.py`: môi giới không duyệt/từ chối được tin (403), không đọc/sửa tin của môi giới khác (404), không lập tin dưới tên người khác |
+| Xóa có phụ thuộc | `test_catalog.py`, `test_listings.py`: dự án còn căn, căn còn tin chưa đóng hoặc hợp đồng đã ký, tin gắn hợp đồng đều trả 409 `DEPENDENCY_EXISTS` |
+| Cache (3.5) | Danh mục công khai cache Redis `real_estate:cache:catalog:v1`, TTL 60 giây, xóa sau commit khi dự án đổi; Redis lỗi thì đọc thẳng DB |
+| Test | 94 test pass; coverage 91% line |
+| Postman | Thêm thư mục "05 Danh mục và tin đăng": 71 request, 324 assertion pass (chế độ local) |
+| p95 sơ bộ (Gate 3) | `GET /public/listings` trên 640 tin công khai của seed, 20 client đồng thời, 800 request trộn bộ lọc: danh sách p95 123 ms, chi tiết p95 69 ms, chung p95 120 ms. Máy Apple M1 Pro, Docker 4 CPU/4 GB; đo không qua rate limiter (giới hạn mặc định 100 request/phút/IP sẽ chặn tải từ một máy) |
+
+Quyết định và sai lệch:
+
+1. **Danh mục địa bàn cấu hình trong mã** (`app/modules/projects/locations.py`), dùng chung cho validate, bộ lọc công khai và seed. ERD không có bảng địa bàn.
+2. **Đọc danh mục nội bộ** cho người có `project.manage`, `property.manage` hoặc `listing.manage`; khách hàng dùng API công khai.
+3. **`listing.approve` là mốc "thấy mọi tin"**: người có quyền duyệt quản lý mọi tin, người chỉ có `listing.manage` bị giới hạn về tin của hồ sơ môi giới của mình.
+4. **PATCH từng phần** cho dự án, căn, tin; `code` dự án, `project_id`/`unit_code` căn và `property_id`/`agent_id` tin không sửa được sau khi tạo. Sửa tin approved/rejected tự đưa về draft và bỏ thông tin duyệt.
+5. **DELETE nhận `row_version` qua query string** vì DELETE không có body.
+6. **Tạo tin nháp cũng kiểm tra căn available và dự án active** theo tiền điều kiện UC-07; submit và approve kiểm tra lại, khóa dòng căn trước khi đổi trạng thái tin (thứ tự căn → tin như task 6.2).
+7. **Projection công khai không có thông tin môi giới.** PRD không yêu cầu hiển thị liên hệ; thêm sau nếu cần.
+8. **Coverage bật `concurrency = ["greenlet", "thread"]`**: SQLAlchemy async chạy qua greenlet, thiếu cấu hình này coverage bỏ sót dòng sau `await` và báo thấp hơn thực tế.
+9. **Sửa test flaky có từ trước** `test_token_sai_secret_bi_tu_choi`: test đổi ký tự base64url cuối của chữ ký, ký tự này chỉ mang 4 bit nên đôi khi chữ ký không đổi.
+10. **Micro ORM cho Phase 3 (ADR-011).** Repository của `projects`, `properties`, `listings` viết SQL tay qua `text()` và trả dataclass, không dùng query/unit-of-work của ORM. Đo lại sau khi chuyển: p95 chung 116 ms, p50 40 ms (trước 56 ms), throughput 392 request/giây (trước 299). Test `test_sua_bang_sql_tay_van_cap_nhat_updated_at` giữ hành vi `updated_at` mà ORM từng tự làm.
+
+### Chưa đạt theo định nghĩa "xong" ở mục 7
+
+- Mục 6 yêu cầu unit test cho service; Phase 2 và Phase 3 mới có integration test qua HTTP và DB thật.
+- Mục 7 yêu cầu OpenAPI hiển thị mã lỗi theo SPEC §3.2; router chưa khai báo `responses` cho 401/403/404/409/422.
 
 ---
 

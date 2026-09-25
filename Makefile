@@ -4,7 +4,7 @@ BACKEND ?= $(COMPOSE) run --rm api
 TEST_DB_URL ?= postgresql+asyncpg://postgres:postgres@postgres:5432/real_estate_test
 
 .PHONY: help up down logs api-logs build ps lint format typecheck test coverage \
-        migration migrate downgrade seed reseed create-test-db shell smoke
+        migration migrate downgrade seed reseed create-test-db shell smoke api-test
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -47,6 +47,9 @@ test: create-test-db  ## Chạy unit + integration test
 coverage: create-test-db  ## Chạy test kèm coverage gate 40%
 	$(COMPOSE) run --rm -e TEST_DATABASE_URL=$(TEST_DB_URL) api \
 		pytest --cov=app --cov-report=term-missing --cov-fail-under=40
+
+api-test:  ## Chạy Postman collection qua Nginx, lưu báo cáo vào postman/reports/
+	./postman/run.sh
 
 migration:  ## Sinh migration mới: make migration m="mô tả"
 	$(BACKEND) python -m alembic revision --autogenerate -m "$(m)"

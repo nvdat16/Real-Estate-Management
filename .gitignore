@@ -39,3 +39,6 @@ uploads/
 
 # Database
 *.db
+
+# Báo cáo Newman chi tiết (chứa token/body response) — lịch sử tóm tắt ở postman/history.csv
+postman/reports/

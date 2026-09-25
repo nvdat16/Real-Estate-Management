@@ -32,6 +32,10 @@ ignore = [
 "tests/*" = ["S101", "S105", "S106"]      # assert và secret giả trong test
 "scripts/*" = ["S106", "S311"]            # seed dùng mật khẩu demo và random thường
 "migrations/*" = ["E501"]
+# Repository SQL tay (ADR-011): f-string chỉ chèn hằng số và cột trong allowlist,
+# mọi giá trị người dùng đi qua tham số bind `:ten` của `text()`.
+"app/common/db.py" = ["S608"]
+"app/modules/{projects,properties,listings}/repository.py" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
@@ -62,6 +66,9 @@ markers = [
 [tool.coverage.run]
 source = ["app"]
 branch = true
+# SQLAlchemy async chạy truy vấn qua greenlet; thiếu dòng này coverage bỏ sót
+# các dòng ngay sau `await` truy vấn DB và báo thấp hơn thực tế.
+concurrency = ["greenlet", "thread"]
 omit = [
     "app/workers/celery.py",
     "*/__init__.py",
