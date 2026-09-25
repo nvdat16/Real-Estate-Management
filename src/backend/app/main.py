@@ -13,6 +13,11 @@ from app.modules.audit_logs.router import router as audit_logs_router
 from app.modules.auth.router import me_router
 from app.modules.auth.router import router as auth_router
 from app.modules.customers.router import router as customers_router
+from app.modules.listings.router import public_router as public_listings_router
+from app.modules.listings.router import router as listings_router
+from app.modules.projects.router import public_router as public_catalog_router
+from app.modules.projects.router import router as projects_router
+from app.modules.properties.router import router as properties_router
 from app.modules.users.router import router as users_router
 
 
@@ -37,6 +42,11 @@ app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(agents_router, prefix=API_PREFIX)
 app.include_router(audit_logs_router, prefix=API_PREFIX)
+app.include_router(projects_router, prefix=API_PREFIX)
+app.include_router(properties_router, prefix=API_PREFIX)
+app.include_router(listings_router, prefix=API_PREFIX)
+app.include_router(public_catalog_router, prefix=API_PREFIX)
+app.include_router(public_listings_router, prefix=API_PREFIX)
 
 
 @app.get("/health")

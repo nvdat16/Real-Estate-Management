@@ -50,9 +50,14 @@ from app.models import (
     User,
     UserRole,
 )
+from app.modules.projects.locations import LOCATIONS
 
 
 DEMO_PASSWORD = "Demo@12345678"  # noqa: S105 - mật khẩu tài khoản demo, không phải secret
+# Không dùng `.local`: email-validator từ chối tên miền dành riêng, khiến tài khoản
+# demo không đi qua được các endpoint nhận `EmailStr` (ví dụ quên mật khẩu).
+DEMO_DOMAIN = "demo.com"
+ADMIN_EMAIL = f"admin@{DEMO_DOMAIN}"
 
 COUNT_AGENTS = 10
 COUNT_CUSTOMERS = 200
@@ -60,17 +65,6 @@ COUNT_PROJECTS = 20
 COUNT_PROPERTIES = 1_200
 COUNT_PUBLIC_LISTINGS = 800
 COUNT_DRAFT_LISTINGS = 100
-
-# Danh mục địa bàn tối giản cho dữ liệu mẫu; danh mục thật được cấu hình riêng
-# theo ERD mục 4 (không hardcode một hệ thống mã trong tài liệu nghiệp vụ).
-LOCATIONS = [
-    ("01", "00004", "Hà Nội", "Ba Đình"),
-    ("01", "00008", "Hà Nội", "Hoàn Kiếm"),
-    ("79", "26734", "TP Hồ Chí Minh", "Quận 1"),
-    ("79", "26746", "TP Hồ Chí Minh", "Quận 3"),
-    ("48", "20194", "Đà Nẵng", "Hải Châu"),
-    ("31", "11317", "Hải Phòng", "Hồng Bàng"),
-]
 
 PERMISSIONS: list[tuple[str, str]] = [
     ("project.manage", "CRUD dự án"),
@@ -139,7 +133,7 @@ def _now() -> datetime:
 
 
 async def _already_seeded(session) -> bool:
-    existing = await session.scalar(select(User.id).where(User.email == "admin@demo.local"))
+    existing = await session.scalar(select(User.id).where(User.email == ADMIN_EMAIL))
     return existing is not None
 
 
@@ -196,9 +190,9 @@ async def _seed_people(session, role_ids: dict[str, uuid.UUID]) -> tuple[list[uu
     """Tạo admin demo, môi giới và khách hàng. Trả về danh sách agent_id."""
     shared_hash = hash_password(DEMO_PASSWORD)
 
-    admin = _user_row("admin@demo.local", "Nguyễn Quản Trị", "0900000001")
-    agent_demo = _user_row("agent@demo.local", "Trần Môi Giới", "0900000002")
-    customer_demo = _user_row("customer@demo.local", "Lê Khách Hàng", "0900000003")
+    admin = _user_row(ADMIN_EMAIL, "Nguyễn Quản Trị", "0900000001")
+    agent_demo = _user_row(f"agent@{DEMO_DOMAIN}", "Trần Môi Giới", "0900000002")
+    customer_demo = _user_row(f"customer@{DEMO_DOMAIN}", "Lê Khách Hàng", "0900000003")
 
     user_rows = [admin, agent_demo, customer_demo]
     agent_users = [agent_demo]
@@ -208,7 +202,7 @@ async def _seed_people(session, role_ids: dict[str, uuid.UUID]) -> tuple[list[uu
         agent_users.append(
             {
                 "id": uuid.uuid4(),
-                "email": f"agent{index:02d}@demo.local",
+                "email": f"agent{index:02d}@{DEMO_DOMAIN}",
                 "password_hash": shared_hash,
                 "full_name": f"Môi giới {index:02d}",
                 "phone": f"09010{index:05d}",
@@ -219,7 +213,7 @@ async def _seed_people(session, role_ids: dict[str, uuid.UUID]) -> tuple[list[uu
         customer_users.append(
             {
                 "id": uuid.uuid4(),
-                "email": f"customer{index:03d}@demo.local",
+                "email": f"customer{index:03d}@{DEMO_DOMAIN}",
                 "password_hash": shared_hash,
                 "full_name": f"Khách hàng {index:03d}",
                 "phone": f"09020{index:05d}",
@@ -271,15 +265,15 @@ async def _seed_people(session, role_ids: dict[str, uuid.UUID]) -> tuple[list[uu
 async def _seed_catalog(session, rng: random.Random) -> list[uuid.UUID]:
     project_rows = []
     for index in range(COUNT_PROJECTS):
-        province_code, ward_code, province_name, ward_name = LOCATIONS[index % len(LOCATIONS)]
+        location = LOCATIONS[index % len(LOCATIONS)]
         project_rows.append(
             {
                 "id": uuid.uuid4(),
                 "code": f"DA{index + 1:03d}",
-                "name": f"Dự án {ward_name} {index + 1:02d}",
-                "address": f"Lô {index + 1}, {ward_name}, {province_name}",
-                "province_code": province_code,
-                "ward_code": ward_code,
+                "name": f"Dự án {location.ward_name} {index + 1:02d}",
+                "address": f"Lô {index + 1}, {location.ward_name}, {location.province_name}",
+                "province_code": location.province_code,
+                "ward_code": location.ward_code,
                 "description": "Dữ liệu mẫu phục vụ demo và đo hiệu năng",
                 "status": ProjectStatus.ACTIVE.value,
             }
@@ -389,9 +383,7 @@ async def seed(reset: bool) -> None:
 
         role_ids = await _seed_rbac(session)
         agent_ids, user_count = await _seed_people(session, role_ids)
-        admin_user_id = await session.scalar(
-            select(User.id).where(User.email == "admin@demo.local")
-        )
+        admin_user_id = await session.scalar(select(User.id).where(User.email == ADMIN_EMAIL))
         property_ids = await _seed_catalog(session, rng)
         listing_count = await _seed_listings(session, rng, property_ids, agent_ids, admin_user_id)
         await session.commit()
@@ -408,7 +400,7 @@ async def seed(reset: bool) -> None:
         f"  tin đăng         : {listing_count}\n"
         f"  tổng bản ghi     : {total}\n"
         f"Tài khoản demo (mật khẩu {DEMO_PASSWORD}):\n"
-        "  admin@demo.local / agent@demo.local / customer@demo.local"
+        f"  {ADMIN_EMAIL} / agent@{DEMO_DOMAIN} / customer@{DEMO_DOMAIN}"
     )
     if total < 2000:
         raise SystemExit(f"Chỉ có {total} bản ghi, yêu cầu tối thiểu 2.000 theo NFR-06")
