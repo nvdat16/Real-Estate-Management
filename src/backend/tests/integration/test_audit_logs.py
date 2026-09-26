@@ -71,3 +71,34 @@ async def test_chi_admin_tra_cuu_duoc_audit_log(
     assert admin_response.status_code == 200
     assert admin_response.json()["total"] >= 1
     assert non_admin_response.status_code == 403
+
+
+async def test_loc_audit_theo_doi_tuong_va_actor(
+    client: httpx.AsyncClient, db_session: AsyncSession
+) -> None:
+    admin_actor = await f.make_actor(
+        db_session, role_code="admin", permission_codes=(PermissionCode.AUDIT_READ,)
+    )
+    target = await f.make_audit_log(db_session, action="user.lock", entity_type="users")
+    await f.make_audit_log(db_session, action="project.create", entity_type="projects")
+    by_actor = await f.make_audit_log(
+        db_session, action="user.unlock", entity_type="users", actor_user_id=admin_actor.id
+    )
+    headers = _auth_headers(admin_actor)
+
+    by_entity = await client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "users", "entity_id": str(target.entity_id)},
+        headers=headers,
+    )
+    assert [item["id"] for item in by_entity.json()["items"]] == [str(target.id)]
+
+    by_type = await client.get(
+        "/api/v1/audit-logs", params={"entity_type": "projects"}, headers=headers
+    )
+    assert [item["action"] for item in by_type.json()["items"]] == ["project.create"]
+
+    actor_items = await client.get(
+        "/api/v1/audit-logs", params={"actor_user_id": str(admin_actor.id)}, headers=headers
+    )
+    assert [item["id"] for item in actor_items.json()["items"]] == [str(by_actor.id)]

@@ -119,3 +119,40 @@ async def test_khoa_voi_row_version_cu_tra_409(
     )
 
     assert response.status_code == 409
+
+
+async def test_doi_role_thu_hoi_token_cu(
+    client: httpx.AsyncClient, db_session: AsyncSession
+) -> None:
+    """Gate 2: token cũ bị từ chối sau khi đổi role (cùng cơ chế `auth_version`)."""
+    admin = await _make_admin(db_session)
+    target, _ = await f.make_agent_actor(db_session)
+    old_headers = _auth_headers(target)
+
+    response = await client.put(
+        f"/api/v1/users/{target.id}/roles",
+        json={"role_codes": ["agent", "admin"], "row_version": 1},
+        headers=_auth_headers(admin),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["roles"] == ["admin", "agent"]
+    assert body["auth_version"] == 2
+    assert body["row_version"] == 2
+
+    me_response = await client.get("/api/v1/me", headers=old_headers)
+    assert me_response.status_code == 401
+
+
+async def test_danh_sach_tai_khoan_kem_role(
+    client: httpx.AsyncClient, db_session: AsyncSession
+) -> None:
+    admin = await _make_admin(db_session)
+    await f.make_actor(db_session, role_code="customer")
+
+    response = await client.get("/api/v1/users", headers=_auth_headers(admin))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert sorted(tuple(item["roles"]) for item in body["items"]) == [("admin",), ("customer",)]
+    assert all("password_hash" not in item for item in body["items"])
