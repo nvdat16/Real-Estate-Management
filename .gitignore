@@ -40,6 +40,4 @@ uploads/
 # Database
 *.db
 
-# Kết quả chạy Postman/Newman cục bộ
-postman/history.csv
-postman/reports/
+postman/
