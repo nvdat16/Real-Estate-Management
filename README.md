@@ -148,81 +148,37 @@ classDiagram
     Agent "1" --> "0..*" Listing : manages
 ```
 
-#### Hợp đồng, ký và tài chính
-
-```mermaid
-classDiagram
-    class Contract {
-        +UUID id
-        +string contract_no
-        +string contract_type
-        +string status
-        +int row_version
-        +datetime signed_at
-    }
-    class ContractVersion {
-        +UUID id
-        +int version_no
-        +string content_hash
-        +decimal total_amount
-        +decimal commission_base
-        +decimal commission_rate
-        +datetime frozen_at
-    }
-    class ContractParty {
-        +UUID id
-        +string party_role
-        +string display_name_snapshot
-    }
-    class ContractSignature {
-        +UUID id
-        +string method
-        +string signed_content_hash
-        +datetime signed_at
-    }
-    class KycVerification {
-        +UUID id
-        +string status
-    }
-    class Invoice {
-        +UUID id
-        +string invoice_no
-        +decimal amount
-        +string status
-        +date due_date
-        +datetime paid_at
-    }
-    class Commission {
-        +UUID id
-        +decimal base_amount
-        +decimal rate_percent
-        +decimal amount
-        +string status
-        +datetime paid_at
-    }
-    class Listing
-    class Property
-    class Customer
-    class Agent
-    class User
-
-    Listing "1" --> "0..*" Contract : originates
-    Property "1" --> "0..*" Contract : transacted in
-    Customer "1" --> "0..*" Contract : enters
-    Agent "1" --> "0..*" Contract : brokers
-    Contract "1" *-- "1..*" ContractVersion : versions
-    ContractVersion "1" *-- "1..*" ContractParty : defines
-    User "1" --> "0..*" ContractParty : participates
-    ContractParty "1" --> "0..1" ContractSignature : signs
-    KycVerification "0..1" --> "0..*" ContractSignature : supports
-    Contract "1" --> "0..*" Invoice : billed by
-    Contract "1" --> "0..1" Commission : earns
-    ContractVersion "1" --> "0..1" Commission : prices
-    Agent "1" --> "0..*" Commission : receives
-```
-
 Chi tiết C4 Level 2/3, các runtime scenario khác và quyết định kiến trúc nằm tại
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Luồng End-to-End (Đăng tin -> Ký hợp đồng)
+```mermaid
+flowchart TD
+    A["Admin tạo dự án và căn available"] --> B["Môi giới tạo draft và gửi pending"]
+    B --> C{"Admin duyệt?"}
+    C -->|"Không"| D["Rejected kèm lý do"]
+    D --> B
+    C -->|"Có"| E["Approved · Khách tìm và xem tin"]
+    E --> F["Admin/môi giới lập hợp đồng draft"]
+    F --> G{"KYC mới nhất đạt?"}
+    G -->|"Không"| H["Khách thực hiện KYC · UC-10"]
+    H --> G
+    G -->|"Có"| I{"Gửi ký và giữ căn thành công?"}
+    I -->|"Xung đột"| J["Giữ nguyên draft · Chọn giao dịch phù hợp khác"]
+    I -->|"Có"| K["Pending signatures · Căn reserved"]
+    K --> L["Hai bên xem nội dung và ký OTP"]
+    L --> M{"Đủ chữ ký?"}
+    M -->|"Chưa đủ"| L
+    M -->|"Đủ"| N["Signed · Căn sold/rented · Tin closed"]
+    K -->|"Hủy trước hoàn tất"| X["Cancelled · Revoke OTP · Căn available"]
+    N --> O["Một khoản hoa hồng pending"]
+    N --> P["Worker tạo PDF riêng tư"]
+    P --> Q{"Tạo PDF thành công?"}
+    Q -->|"Không"| R["Job failed · Cho thử lại theo quyền"]
+    R --> P
+    Q -->|"Có"| S["Gửi email hoàn tất · Các bên tải PDF"]
+```
+
 
 
 ## Cấu trúc thư mục
