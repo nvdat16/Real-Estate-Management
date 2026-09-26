@@ -148,38 +148,6 @@ classDiagram
     Agent "1" --> "0..*" Listing : manages
 ```
 
-Chi tiết C4 Level 2/3, các runtime scenario khác và quyết định kiến trúc nằm tại
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-### Luồng End-to-End (Đăng tin -> Ký hợp đồng)
-```mermaid
-flowchart TD
-    A["Admin tạo dự án và căn available"] --> B["Môi giới tạo draft và gửi pending"]
-    B --> C{"Admin duyệt?"}
-    C -->|"Không"| D["Rejected kèm lý do"]
-    D --> B
-    C -->|"Có"| E["Approved · Khách tìm và xem tin"]
-    E --> F["Admin/môi giới lập hợp đồng draft"]
-    F --> G{"KYC mới nhất đạt?"}
-    G -->|"Không"| H["Khách thực hiện KYC · UC-10"]
-    H --> G
-    G -->|"Có"| I{"Gửi ký và giữ căn thành công?"}
-    I -->|"Xung đột"| J["Giữ nguyên draft · Chọn giao dịch phù hợp khác"]
-    I -->|"Có"| K["Pending signatures · Căn reserved"]
-    K --> L["Hai bên xem nội dung và ký OTP"]
-    L --> M{"Đủ chữ ký?"}
-    M -->|"Chưa đủ"| L
-    M -->|"Đủ"| N["Signed · Căn sold/rented · Tin closed"]
-    K -->|"Hủy trước hoàn tất"| X["Cancelled · Revoke OTP · Căn available"]
-    N --> O["Một khoản hoa hồng pending"]
-    N --> P["Worker tạo PDF riêng tư"]
-    P --> Q{"Tạo PDF thành công?"}
-    Q -->|"Không"| R["Job failed · Cho thử lại theo quyền"]
-    R --> P
-    Q -->|"Có"| S["Gửi email hoàn tất · Các bên tải PDF"]
-```
-
-
 
 ## Cấu trúc thư mục
 
