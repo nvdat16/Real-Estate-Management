@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest_asyncio
 from redis.asyncio import from_url as redis_from_url
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from tests.integration import factories as f
@@ -33,3 +33,10 @@ async def _flush_rate_limit_redis() -> None:
         await redis.flushdb()
     finally:
         await redis.aclose()
+
+
+@pytest_asyncio.fixture
+async def session_factory(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Session riêng như worker thật dùng: chỉ thấy dữ liệu đã commit, không dùng
+    chung transaction với `db_session` của request test."""
+    return async_sessionmaker(bind=db_engine, class_=AsyncSession, expire_on_commit=False)

@@ -37,14 +37,20 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-not-for-production")
 
 from app.core.database import get_db  # noqa: E402 - cần JWT_SECRET_KEY đặt trước
+from app.integrations.file_storage.service import (  # noqa: E402
+    LocalFileStorage,
+    get_file_storage,
+)
 from app.middleware import register_exception_handlers  # noqa: E402
 from app.modules.agents.router import router as agents_router  # noqa: E402
 from app.modules.audit_logs.router import router as audit_logs_router  # noqa: E402
 from app.modules.auth.router import me_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
 from app.modules.customers.router import router as customers_router  # noqa: E402
+from app.modules.files.router import router as files_router  # noqa: E402
 from app.modules.listings.router import public_router as public_listings_router  # noqa: E402
 from app.modules.listings.router import router as listings_router  # noqa: E402
+from app.modules.notifications.router import router as jobs_router  # noqa: E402
 from app.modules.projects.router import public_router as public_catalog_router  # noqa: E402
 from app.modules.projects.router import router as projects_router  # noqa: E402
 from app.modules.properties.router import router as properties_router  # noqa: E402
@@ -63,6 +69,8 @@ _API_ROUTERS = (
     listings_router,
     public_catalog_router,
     public_listings_router,
+    jobs_router,
+    files_router,
 )
 
 
@@ -142,8 +150,16 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture
+def file_storage(tmp_path: Path) -> LocalFileStorage:
+    """Kho tệp riêng cho mỗi test, không ghi vào volume thật."""
+    return LocalFileStorage(tmp_path / "files")
+
+
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
+async def client(
+    db_session: AsyncSession, file_storage: LocalFileStorage
+) -> AsyncIterator[httpx.AsyncClient]:
     """Client HTTP cho các router API, KHÔNG dùng `app.main.app` trực tiếp.
 
     `app.main.app` gắn `RateLimitMiddleware` thật (cần Redis) — dùng nó ở đây
@@ -157,6 +173,7 @@ async def client(db_session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
     for router in _API_ROUTERS:
         test_app.include_router(router, prefix="/api/v1")
     test_app.dependency_overrides[get_db] = lambda: db_session
+    test_app.dependency_overrides[get_file_storage] = lambda: file_storage
 
     transport = httpx.ASGITransport(app=test_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as async_client:

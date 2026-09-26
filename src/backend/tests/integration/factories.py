@@ -21,6 +21,7 @@ from app.common.enums import (
     PartyRole,
     PriceUnit,
 )
+from app.core.security import create_access_token
 from app.models import (
     Agent,
     AuditLog,
@@ -38,6 +39,10 @@ from app.models import (
     User,
     UserRole,
 )
+
+
+def auth_headers(user: User) -> dict[str, str]:
+    return {"Authorization": f"Bearer {create_access_token(user.id, user.auth_version)}"}
 
 
 def _unique(prefix: str) -> str:
