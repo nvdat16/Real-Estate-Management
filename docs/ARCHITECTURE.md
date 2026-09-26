@@ -426,7 +426,7 @@ flowchart LR
     class db,redis,mail,store external
 ```
 
-`app/workers/{celery,email_tasks,contract_tasks,report_tasks}.py` đều rỗng, nhưng `docker-compose.yml` đã khai báo service `worker` chạy `celery -A app.workers.celery worker`, nên container này sẽ fail đến khi có code. Mọi task phải idempotent theo `jobs.idempotency_key`, claim việc an toàn khi chạy nhiều instance, retry hữu hạn và không giữ transaction DB trong lúc gọi SMTP/kho tệp. OTP thô chỉ tồn tại trong bộ nhớ của task gửi email; DB chỉ lưu hash.
+Trạng thái 26/09/2026 (Phase 4): **Implemented** cho dispatcher (`app/workers/dispatcher.py`), đối soát và retry/backoff (`app/workers/runner.py`), email task (`app/workers/email_tasks.py`, mới có mẫu reset mật khẩu) và Celery app + beat (`app/workers/celery.py`); service `worker` trong compose chạy `celery ... worker --beat`. PDF (`contract_tasks.py`) và nhập/xuất (`report_tasks.py`) còn rỗng, job_type chưa có handler sẽ failed `UNSUPPORTED_JOB_TYPE`. Mọi task phải idempotent theo `jobs.idempotency_key`, claim việc an toàn khi chạy nhiều instance, retry hữu hạn và không giữ transaction DB trong lúc gọi SMTP/kho tệp. OTP thô chỉ tồn tại trong bộ nhớ của task gửi email; DB chỉ lưu hash.
 
 ### 5.5 Business modules and data ownership
 
@@ -468,8 +468,10 @@ src/backend/
 ├── app/modules/<domain>/{router,service,repository,schemas,permissions,exceptions}.py
 │                                      # Skeleton — rỗng, là phần việc của Phase 2 trở đi
 ├── migrations/                        # Implemented — env.py async + migration đầu tiên
-├── app/integrations/{kyc,email,pdf,file_storage}/service.py          # Skeleton — rỗng
-├── app/workers/{celery,email_tasks,contract_tasks,report_tasks}.py   # Skeleton — rỗng
+├── app/integrations/{email,file_storage}/service.py  # Implemented — SMTP, kho tệp cục bộ (Phase 4)
+├── app/integrations/{kyc,pdf}/service.py             # Skeleton — rỗng
+├── app/workers/{celery,runner,dispatcher,email_tasks,handlers}.py  # Implemented (Phase 4)
+├── app/workers/{contract_tasks,report_tasks}.py      # Skeleton — rỗng
 ├── app/common/{schemas,utils,enums}/  # Skeleton — rỗng
 ├── scripts/seed.py                    # Implemented — seed 2.798 bản ghi + 3 tài khoản demo
 ├── scripts/create_admin.py            # Skeleton — rỗng
@@ -482,8 +484,8 @@ src/backend/
 
 src/frontend/                          # Skeleton — template Vite/React 19 mặc định
 infrastructure/nginx/nginx.conf        # Implemented — proxy /api, /docs và React
-docker-compose.yml                     # Implemented — postgres, redis, api, frontend, nginx,
-                                       #               mailhog; worker sau profile "worker"
+docker-compose.yml                     # Implemented — postgres, redis, api, worker (+beat),
+                                       #               frontend, nginx, mailhog
 .github/workflows/ci.yaml              # Implemented — lint, test+coverage, build, compose smoke
 docs/{PRD,SPEC,ERD,USE_CASES}.md       # Implemented — đặc tả đã hoàn chỉnh
 docs/{API,DEPLOYMENT}.md               # Proposed — chưa tồn tại trong repo
@@ -728,9 +730,9 @@ Trạng thái thực tế của Compose: `docker-compose.yml` ở gốc repo kha
 | ADR-005 | JWT bearer 15 phút, không refresh token, thu hồi bằng `auth_version` | Proposed |
 | ADR-006 | Ký hợp đồng bằng OTP email trên phiên bản đã đóng băng, hai bên theo A-02 | Proposed |
 | ADR-007 | Giữ căn bằng partial unique index + khóa theo thứ tự cố định thay vì chỉ kiểm tra ở tầng ứng dụng | Proposed |
-| ADR-008 | `jobs` + `outbox_events` trong PostgreSQL, Celery/Redis chỉ là phương tiện vận chuyển | Proposed |
+| ADR-008 | `jobs` + `outbox_events` trong PostgreSQL, Celery/Redis chỉ là phương tiện vận chuyển | Accepted 26/09/2026 — Implemented ở Phase 4: API chỉ ghi outbox, dispatcher publish theo lease, retry/backoff đi qua outbox chứ không dùng retry của Celery, không bật result backend |
 | ADR-009 | Adapter cho KYC/SMTP/PDF/kho tệp, chế độ demo có nhãn; PDF dùng WeasyPrint, nhà cung cấp KYC chưa chọn | Proposed |
-| ADR-010 | Redis dùng chung cho rate limit, cache và broker, tách namespace; fail closed cho route nhạy cảm | Accepted một phần — rate limit và cache danh mục đã Implemented, broker chưa |
+| ADR-010 | Redis dùng chung cho rate limit, cache và broker, tách namespace; fail closed cho route nhạy cảm | Accepted — rate limit, cache danh mục (Redis db 0) và broker Celery (Redis db 1, `CELERY_BROKER_URL`) đã Implemented |
 | ADR-011 | Truy cập dữ liệu kiểu micro ORM (giống Dapper) cho **mọi module**: SQL viết tay chạy qua SQLAlchemy `text()` với tham số bind, kết quả map sang dataclass bất biến (`app/common/db.py`); không dùng query/unit-of-work của ORM trong code nghiệp vụ. Vẫn dùng engine/`AsyncSession`/transaction của SQLAlchemy nên không đổi stack (C3); model ORM chỉ còn là định nghĩa schema cho Alembic, test factory và seed. Phase mới viết theo cách này. Hệ quả: repository tự đặt `updated_at = now()`, tên cột động (SET/ORDER BY) phải qua allowlist | Accepted 25/09/2026 — Implemented cho Phase 2 và Phase 3 |
 
 **Open decisions:** nhà cung cấp KYC; kho tệp là volume hay S3-compatible; hosting và HTTPS thật; chính sách sao lưu/RPO/RTO; chính sách lưu và xóa dữ liệu KYC; thông báo in-app; 2FA đăng nhập (FR-18, P1).
@@ -796,7 +798,7 @@ Các gate dưới đây là target bắt buộc. CI hiện chỉ là workflow pl
 | `EveryCommandWritesAudit` | Q2 | lệnh nhạy cảm commit mà không có `audit_logs` cùng transaction | Planned — integration tests |
 | `PropertyHoldIsExclusive` | Q2, QR2 | hai hợp đồng cùng giữ một căn | **Available một phần** — `tests/integration/test_schema_invariants.py`; phần căn `reserved` với hợp đồng `draft` cần service ở Phase 6 |
 | `SigningIsIdempotent` | Q5, QR3 | ký lặp tạo thêm chữ ký, hoa hồng hoặc job PDF | Planned — integration tests |
-| `OutboxIsAtomicWithBusinessChange` | Q5 | commit nghiệp vụ mà thiếu `jobs`/`outbox_events` hoặc ngược lại | Planned — DB integration tests |
+| `OutboxIsAtomicWithBusinessChange` | Q5 | commit nghiệp vụ mà thiếu `jobs`/`outbox_events` hoặc ngược lại | **Available** — `tests/integration/test_jobs_worker.py` (T-12: Redis/SMTP lỗi sau commit, worker chết giữa job, job lặp) |
 | `KycCallbackConformance` | QR5 | callback giả/lặp/cũ làm đổi trạng thái KYC | Planned — integration conformance tests |
 | `ImportIsAllOrNothing` | QR7 | một dòng lỗi vẫn ghi được bản ghi nghiệp vụ | Planned — integration tests |
 | `MigrationsApplyOnCleanDatabase` | C4 | `alembic upgrade head` fail hoặc lệch model | **Available** — job `test` của CI chạy `downgrade base` rồi `upgrade head` |

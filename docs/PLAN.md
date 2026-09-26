@@ -4,7 +4,7 @@
 | --- | --- |
 | Phiên bản | 1.0 — bản đề xuất để review, 17/09/2026 |
 | Căn cứ | [PRD](PRD.md), [SPEC](SPEC.md), [ERD](ERD.md), [USE_CASES](USE_CASES.md), [ARCHITECTURE](ARCHITECTURE.md), khảo sát repository |
-| Trạng thái | Phase 0–3 đã hoàn thành và kiểm chứng; xem Nhật ký thực hiện ở mục 9 |
+| Trạng thái | Phase 0–4 đã hoàn thành và kiểm chứng; xem Nhật ký thực hiện ở mục 9 |
 | Giả định nhân lực | 1 người làm chính; ước lượng theo **ngày công**, không phải ngày lịch |
 | Tổng ước lượng | 62–83 ngày công (chi tiết ở mục 6) |
 
@@ -93,12 +93,12 @@ Bốn blocker phải xử lý trước mọi việc khác:
 
 Điều kiện tiên quyết: Gate 2 (không cần Gate 3). Phải xong **trước** Phase 6. Bao phủ FR-15, NFR-08.
 
-- [ ] **4.1** Module `notifications`: bảng `jobs`, `outbox_events`, `email_deliveries`; API `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/retry` với scope chủ job.
-- [ ] **4.2** `app/workers/celery.py`: Celery app đọc `settings.REDIS_URL`; dispatcher lấy outbox theo lease và chỉ đánh dấu `published` sau khi broker nhận.
-- [ ] **4.3** Retry có `max_attempts`/backoff, `error_code` đã làm sạch, task đối soát job `pending/running` quá hạn.
-- [ ] **4.4** `integrations/email/service.py` gửi qua MailHog; `email_tasks` cho reset mật khẩu (nối vào 2.4) với một job một recipient.
-- [ ] **4.5** `integrations/file_storage/service.py` kho private; API `POST /files`, `GET /files/{id}/download` kiểm `purpose` và quan hệ chủ sở hữu, trả `Content-Disposition: attachment` và `nosniff`.
-- [ ] **4.6** Test T-12: giả lập Redis/SMTP lỗi sau commit, kill worker giữa job, gửi lại job đã succeeded.
+- [x] **4.1** Module `notifications`: bảng `jobs`, `outbox_events`, `email_deliveries`; API `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/retry` với scope chủ job.
+- [x] **4.2** `app/workers/celery.py`: Celery app đọc `settings.REDIS_URL`; dispatcher lấy outbox theo lease và chỉ đánh dấu `published` sau khi broker nhận.
+- [x] **4.3** Retry có `max_attempts`/backoff, `error_code` đã làm sạch, task đối soát job `pending/running` quá hạn.
+- [x] **4.4** `integrations/email/service.py` gửi qua MailHog; `email_tasks` cho reset mật khẩu (nối vào 2.4) với một job một recipient.
+- [x] **4.5** `integrations/file_storage/service.py` kho private; API `POST /files`, `GET /files/{id}/download` kiểm `purpose` và quan hệ chủ sở hữu, trả `Content-Disposition: attachment` và `nosniff`.
+- [x] **4.6** Test T-12: giả lập Redis/SMTP lỗi sau commit, kill worker giữa job, gửi lại job đã succeeded.
 
 **Gate 4:** email reset chạy end-to-end và thấy trong MailHog; dừng worker giữa job rồi khởi động lại không tạo side effect lần hai; job lặp không nhân đôi bản ghi.
 
@@ -352,9 +352,38 @@ Quyết định và sai lệch:
 9. **Sửa test flaky có từ trước** `test_token_sai_secret_bi_tu_choi`: test đổi ký tự base64url cuối của chữ ký, ký tự này chỉ mang 4 bit nên đôi khi chữ ký không đổi.
 10. **Micro ORM cho toàn bộ backend (ADR-011).** Repository của mọi module (Phase 2 và 3) viết SQL tay qua `text()` và trả dataclass; code trong `app/` không còn import model ORM, model chỉ dùng cho Alembic, test factory và seed; `conditional_update` được thay bằng `app/common/db.py::update_versioned`. Phase 4 trở đi viết theo cách này. Đo lại `/public/listings` sau khi chuyển Phase 3: p95 116 ms, p50 40 ms (trước 56 ms), throughput 392 request/giây (trước 299). Thêm test cho các đường SQL mới viết: `updated_at` sau khi sửa, đổi role thu hồi token cũ (trước đó chỉ có ở Postman), danh sách tài khoản, hồ sơ môi giới, bộ lọc audit.
 
+### Phase 4 — hoàn thành 26/09/2026
+
+| Việc | Bằng chứng |
+| --- | --- |
+| API (4.1) | `GET /jobs` (mặc định job của mình, `scope=all` cần `job.manage`), `GET /jobs/{id}`, `POST /jobs/{id}/retry`; `POST /files`, `GET /files/{id}/download`; `GET /ready` |
+| Outbox + worker (4.2, 4.3) | `app/workers/{celery,dispatcher,runner,email_tasks,handlers}.py`; service `worker` trong compose chạy `celery ... worker --beat` (dispatcher mỗi 2 giây, đối soát mỗi 30 giây), healthcheck `celery inspect ping` |
+| Email reset (4.4) | API chỉ tạo job + outbox + `email_deliveries` cùng transaction; worker sinh token lúc gửi. Trên compose: thư tới MailHog sau khoảng 3 giây, liên kết trong thư đặt lại mật khẩu được, dùng lại lần hai trả `RESET_TOKEN_INVALID`; log worker không chứa `token=` |
+| Kho tệp (4.5) | Upload `kyc` (JPEG/PNG/PDF) và `import` (XLSX/CSV), MIME suy từ nội dung, tệp lưu quyền `0600` với tên server sinh; tải về có `Content-Disposition: attachment` + `filename*` UTF-8, `nosniff`, `Cache-Control: private, no-store`. Qua Nginx: môi giới tải KYC của khách trả 404, Admin có `kyc.read_sensitive` trả 200 |
+| T-12 (4.6) | `test_jobs_worker.py` (14 test): Redis lỗi sau commit → outbox giữ nguyên, lùi lịch rồi phát lại; lease hết hạn được lấy lại; broker mất message → đối soát phát lại; SMTP lỗi → backoff 5/15 giây, hết 3 lượt thì failed, retry thủ công có audit; lỗi vĩnh viễn không retry; worker chết giữa job hoặc sau khi gửi → chạy lại không gửi thư lần hai; job succeeded nhận trùng 3 lần không có side effect |
+| Scope (T-02 phần job/tệp) | `test_jobs_api.py` (5 test), `test_files.py` (11 test): đổi UUID sang job/tệp người khác trả 404; client không upload được purpose hệ thống; macro/external link/`.xlsm`/sai nội dung bị chặn |
+| Gate 4 trên compose | (1) tắt Redis sau khi API commit: job/outbox vẫn `pending`, Redis lên lại thì thư tới sau 5 giây, đúng 1 thư; (2) dựng lại trạng thái worker bị kill giữa job (`running`, heartbeat cũ 5 phút) rồi khởi động worker: đối soát chạy lại job, thư tới sau 5 giây, đúng 1 thư, `attempts=2`; (3) tắt MailHog: 2 lần `SMTP_UNAVAILABLE`, bật lại thì lần 3 thành công, chỉ còn 1 token reset dùng được; (4) `/ready` trả 503 khi Redis tắt, 200 khi có lại |
+| Test | 146 test pass (thêm 47: 30 integration + 17 unit); coverage 93% line; `ruff check`, `ruff format --check`, `mypy app` sạch |
+
+Quyết định và sai lệch:
+
+1. **Permission mới `job.manage`** cho quyền vận hành: xem mọi job, kể cả job hệ thống, và retry chúng. `scripts/seed.py` giờ đồng bộ RBAC còn thiếu khi database đã seed, nên `make seed` là đủ, không cần `--reset`.
+2. **Job reset mật khẩu là job hệ thống** (`requested_by` rỗng) vì người gọi chưa đăng nhập; chỉ `job.manage` thấy, nên không ai dò được email có tài khoản qua trạng thái job (UC-22). Audit `auth.password_reset_requested` vẫn ghi lúc API nhận yêu cầu. Mỗi lần thử gửi sinh token mới và thu hồi token trước.
+3. **Retry và backoff đi qua outbox** (`available_at`), không dùng retry của Celery hay result backend: backoff vẫn còn khi broker mất message. Mỗi job có đúng một outbox event, được đưa về `pending` mỗi khi cần phát lại.
+4. **Hai nhóm lỗi** (`app/modules/notifications/exceptions.py`): tạm thời (`SMTP_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `WORKER_LOST`, `INTERNAL_ERROR`) tự retry trong `max_attempts` và cho retry thủ công; vĩnh viễn (`EMAIL_REJECTED`, `INVALID_PAYLOAD`, `RECIPIENT_UNAVAILABLE`, `PERMISSION_REVOKED`, `UNSUPPORTED_JOB_TYPE`) failed ngay, retry thủ công trả 409. Lỗi chưa phân loại tính là tạm thời.
+5. **Heartbeat là `jobs.updated_at`**, timeout theo loại job: email 120 giây, PDF 300 giây, nhập/xuất 900 giây. Job `pending` có sự kiện đã published quá 120 giây được coi là broker đã mất message và được phát lại; `claim_job` (UPDATE có điều kiện `status = 'pending'`) bảo đảm message trùng chỉ một worker xử lý.
+6. **Beat chạy nhúng trong worker** (`--beat`), chỉ đúng khi có một instance worker; khi scale thì tách beat thành service riêng. Đã bỏ `profiles: ["worker"]` (sai lệch số 2 của Phase 0–1).
+7. **Broker Celery dùng Redis db 1** (`CELERY_BROKER_URL`), tách khỏi cache/rate limit ở db 0; test flush db 0 giữa các lần chạy không chạm tới hàng đợi.
+8. **Upload không có trạng thái `pending`**: ghi xong vào kho rồi mới insert `files` ở trạng thái `ready`; insert lỗi thì xóa tệp mồ côi. Tệp hệ thống sinh (Phase 6–8) sẽ dùng `pending → ready`. Kiểm tra công thức trong ô Excel để lại cho task 8.4; ở đây mới chặn macro, external link và zip bomb.
+9. **Quyền tải tệp hệ thống tạm thời chỉ cho người yêu cầu job** sinh ra tệp; Phase 6/7 bổ sung bên hợp đồng/hóa đơn, Phase 8 kiểm tra lại quyền export lúc tải.
+10. **Tải xuống kiểm tra lại `sha256`**: tệp trong kho bị sửa hoặc mất trả 503 `DEPENDENCY_UNAVAILABLE`, không phát nội dung sai lệch.
+11. **`GET /ready`** (Q6) kiểm tra DB + Redis, trả 503 khi thiếu một trong hai; Nginx proxy `/ready` và bỏ header `nosniff` bị lặp giữa Nginx và API.
+12. **`PUBLIC_APP_URL`** dựng liên kết trong email; compose mặc định `http://localhost:$HTTP_PORT`. Trang `/reset-password` của frontend thuộc task 9.4, chưa có.
+13. Không thêm bảng hay migration: các bảng `jobs`, `outbox_events`, `email_deliveries`, `files` của migration đầu tiên đủ dùng.
+
 ### Chưa đạt theo định nghĩa "xong" ở mục 7
 
-- Mục 6 yêu cầu unit test cho service; Phase 2 và Phase 3 mới có integration test qua HTTP và DB thật.
+- Mục 6 yêu cầu unit test cho service; Phase 2 và Phase 3 mới có integration test qua HTTP và DB thật. Phase 4 có unit test cho adapter SMTP, kho tệp và helper tệp; service notifications/files vẫn chỉ có integration test.
 - Mục 7 yêu cầu OpenAPI hiển thị mã lỗi theo SPEC §3.2; router chưa khai báo `responses` cho 401/403/404/409/422.
 
 ---
