@@ -53,9 +53,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-real_estate}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY chưa được đặt, xem .env.example}
+      CELERY_BROKER_URL: redis://redis:6379/1
       FILE_STORAGE_DIR: /var/lib/rem/files
       SMTP_HOST: mailhog
       SMTP_PORT: "1025"
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:${HTTP_PORT:-8080}}
       # Uvicorn chỉ lấy IP client từ X-Forwarded-For khi request đến từ Nginx;
       # gọi thẳng cổng api thì không giả mạo được IP để né rate limit.
       FORWARDED_ALLOW_IPS: ${NGINX_IP:-172.28.0.10}
@@ -71,16 +73,20 @@ services:
       retries: 10
       start_period: 20s
 
-  # Worker chưa có mã nguồn (app/workers/celery.py còn rỗng) nên được đặt sau
-  # profile để `docker compose up` không đỏ. Bỏ profile khi làm PLAN Phase 4.
+  # Celery worker + beat (PLAN Phase 4): beat chạy dispatcher outbox mỗi 2 giây và
+  # đối soát job treo mỗi 30 giây. `--beat` nhúng trong worker chỉ đúng khi có một
+  # instance; chạy nhiều worker thì tách beat ra service riêng.
   worker:
     build:
       context: src/backend
       args:
         INSTALL_DEV: "true"
     container_name: real-estate-worker
-    profiles: ["worker"]
-    command: celery -A app.workers.celery worker --loglevel=info
+    command: >
+      celery -A app.workers.celery worker
+      --beat
+      --schedule /tmp/celerybeat-schedule
+      --loglevel=info
     volumes:
       - ./src/backend:/app
       - file_storage:/var/lib/rem/files
@@ -89,14 +95,23 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-real_estate}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY chưa được đặt, xem .env.example}
+      CELERY_BROKER_URL: redis://redis:6379/1
       FILE_STORAGE_DIR: /var/lib/rem/files
       SMTP_HOST: mailhog
       SMTP_PORT: "1025"
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:${HTTP_PORT:-8080}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # API sống không có nghĩa job đang được xử lý (SPEC SP-08): worker có check riêng.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.workers.celery inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
 
   frontend:
     image: node:22-alpine

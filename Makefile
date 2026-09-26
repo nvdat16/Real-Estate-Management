@@ -3,15 +3,15 @@ COMPOSE ?= docker compose
 BACKEND ?= $(COMPOSE) run --rm api
 TEST_DB_URL ?= postgresql+asyncpg://postgres:postgres@postgres:5432/real_estate_test
 
-.PHONY: help up down logs api-logs build ps lint format typecheck test coverage \
+.PHONY: help up down logs api-logs worker-logs build ps lint format typecheck test coverage \
         migration migrate downgrade seed reseed create-test-db shell smoke api-test
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
 
-up:  ## Dựng toàn bộ stack (postgres, redis, api, frontend, nginx, mailhog)
+up:  ## Dựng toàn bộ stack (postgres, redis, api, worker, frontend, nginx, mailhog)
 	$(COMPOSE) up -d --wait postgres redis api
-	$(COMPOSE) up -d frontend nginx mailhog
+	$(COMPOSE) up -d worker frontend nginx mailhog
 
 down:  ## Dừng và xóa container
 	$(COMPOSE) down
@@ -22,8 +22,11 @@ logs:  ## Xem log tất cả service
 api-logs:  ## Xem log API
 	$(COMPOSE) logs -f api
 
-build:  ## Build lại image backend
-	$(COMPOSE) build api
+worker-logs:  ## Xem log Celery worker (dispatcher, đối soát, job)
+	$(COMPOSE) logs -f worker
+
+build:  ## Build lại image backend (api và worker dùng chung Dockerfile)
+	$(COMPOSE) build api worker
 
 ps:  ## Trạng thái service
 	$(COMPOSE) ps
