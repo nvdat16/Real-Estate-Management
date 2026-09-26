@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import insert, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.common.enums import (
     AgentStatus,
@@ -85,6 +86,7 @@ PERMISSIONS: list[tuple[str, str]] = [
     ("data.export", "Xuất dữ liệu theo phạm vi"),
     ("audit.read", "Tra cứu audit log"),
     ("user.manage", "Quản lý tài khoản và vai trò"),
+    ("job.manage", "Xem và thử lại mọi tác vụ nền, kể cả tác vụ hệ thống"),
 ]
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
@@ -142,6 +144,33 @@ async def _reset(session) -> None:
     await session.execute(text(f"TRUNCATE TABLE {joined} RESTART IDENTITY CASCADE"))
     await session.commit()
     print("Đã xóa dữ liệu nghiệp vụ cũ")
+
+
+async def _sync_rbac(session) -> int:
+    """Bổ sung permission và gán quyền mới thêm vào PERMISSIONS/ROLE_PERMISSIONS cho
+    database đã seed (ví dụ `job.manage` của Phase 4), không đụng dữ liệu khác."""
+    added = 0
+    for code, description in PERMISSIONS:
+        result = await session.execute(
+            pg_insert(Permission)
+            .values(code=code, description=description)
+            .on_conflict_do_nothing(index_elements=["code"])
+        )
+        added += result.rowcount or 0
+
+    role_ids = dict((await session.execute(select(Role.code, Role.id))).all())
+    permission_ids = dict((await session.execute(select(Permission.code, Permission.id))).all())
+    for role_code, codes in ROLE_PERMISSIONS.items():
+        if role_code not in role_ids:
+            continue
+        for code in codes:
+            result = await session.execute(
+                pg_insert(RolePermission)
+                .values(role_id=role_ids[role_code], permission_id=permission_ids[code])
+                .on_conflict_do_nothing()
+            )
+            added += result.rowcount or 0
+    return added
 
 
 async def _seed_rbac(session) -> dict[str, uuid.UUID]:
@@ -378,7 +407,12 @@ async def seed(reset: bool) -> None:
         if reset:
             await _reset(session)
         elif await _already_seeded(session):
-            print("Dữ liệu đã được seed trước đó. Dùng --reset để seed lại.")
+            added = await _sync_rbac(session)
+            await session.commit()
+            print(
+                "Dữ liệu đã được seed trước đó. Dùng --reset để seed lại."
+                f" Đồng bộ RBAC: thêm {added} quyền/gán quyền còn thiếu."
+            )
             return
 
         role_ids = await _seed_rbac(session)
