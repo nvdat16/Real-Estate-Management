@@ -22,3 +22,6 @@ class PermissionCode:
     PROPERTY_MANAGE = "property.manage"
     LISTING_MANAGE = "listing.manage"
     LISTING_APPROVE = "listing.approve"
+    KYC_READ_SENSITIVE = "kyc.read_sensitive"
+    DATA_IMPORT = "data.import"
+    JOB_MANAGE = "job.manage"

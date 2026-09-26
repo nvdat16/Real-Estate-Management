@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-_SENSITIVE_KEYS = frozenset(
+SENSITIVE_KEYS = frozenset(
     {
         "password",
         "password_hash",
@@ -34,7 +34,7 @@ def redact(data: Mapping[str, Any] | None) -> dict[str, Any] | None:
         return None
     result: dict[str, Any] = {}
     for key, value in data.items():
-        if key.lower() in _SENSITIVE_KEYS:
+        if key.lower() in SENSITIVE_KEYS:
             result[key] = _MASK
         elif isinstance(value, Mapping):
             result[key] = redact(value)
@@ -49,7 +49,7 @@ class SensitiveDataFilter(logging.Filter):
     """Che các field nhạy cảm trong `record.__dict__` (structured `extra=`)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        for key in _SENSITIVE_KEYS:
+        for key in SENSITIVE_KEYS:
             if hasattr(record, key):
                 setattr(record, key, _MASK)
         return True

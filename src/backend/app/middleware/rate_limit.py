@@ -51,7 +51,7 @@ class RateLimitMiddleware:
         redis: Redis | None = None,
         route_limits: Mapping[tuple[str, str], RateLimit] | None = None,
         default_limit: RateLimit | None = DEFAULT_RATE_LIMIT,
-        excluded_paths: Iterable[str] = ("/health", "/docs", "/openapi.json"),
+        excluded_paths: Iterable[str] = ("/health", "/ready", "/docs", "/openapi.json"),
         fail_closed_paths: Iterable[str] | None = None,
         key_prefix: str = "real_estate:rate_limit",
     ) -> None:
