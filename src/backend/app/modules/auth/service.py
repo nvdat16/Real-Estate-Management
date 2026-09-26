@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +31,7 @@ from app.modules.audit_logs.service import record_audit
 from app.modules.auth import repository as auth_repository
 from app.modules.auth.schemas import UserPublic
 from app.modules.customers import service as customers_service
+from app.modules.notifications import service as notifications_service
 from app.modules.roles import repository as roles_repository
 from app.modules.users import repository as users_repository
 from app.modules.users.repository import UserRow
@@ -38,7 +40,8 @@ from app.modules.users.repository import UserRow
 # Hash cố định để `verify_password` luôn tốn thời gian tương đương dù email có
 # tồn tại hay không (chặn timing oracle dò tài khoản).
 _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-safety")
-_RESET_TOKEN_TTL = timedelta(minutes=15)
+RESET_TOKEN_TTL = timedelta(minutes=15)
+PASSWORD_RESET_TEMPLATE = "password_reset"  # noqa: S105 - mã mẫu email, không phải secret
 
 
 def _normalize_email(email: str) -> str:
@@ -102,22 +105,42 @@ async def logout(db: AsyncSession, *, user: UserRow) -> None:
 
 
 async def request_password_reset(db: AsyncSession, *, email: str) -> None:
+    """Chỉ tạo job gửi thư; token được worker sinh lúc gửi (SPEC SP-01) nên token
+    thô không nằm trong job payload, log hay response."""
     normalized_email = _normalize_email(email)
     await enforce_fixed_window(key=f"reset_email:{normalized_email}", limit=3, window_seconds=900)
 
     user = await users_repository.get_by_email(db, normalized_email)
-    if user is not None:
-        await issue_password_reset_token(db, user)
+    if user is not None and user.deleted_at is None:
+        await record_audit(
+            db,
+            actor=user,
+            action="auth.password_reset_requested",
+            entity_type="users",
+            entity_id=user.id,
+        )
+        # `requested_by` rỗng: người gọi chưa đăng nhập, job chỉ Admin vận hành
+        # xem được, không ai dò được email có tài khoản qua trạng thái job (UC-22).
+        await notifications_service.enqueue_email(
+            db,
+            template_code=PASSWORD_RESET_TEMPLATE,
+            recipient_email=user.email,
+            recipient_user_id=user.id,
+            requested_by=None,
+            idempotency_key=f"email:password_reset:{user.id}:{uuid.uuid4().hex}",
+            payload={"user_id": str(user.id)},
+        )
+        await db.commit()
     # Luôn coi như "đã tiếp nhận" bất kể email có tồn tại hay không — router
     # trả cùng message trong mọi trường hợp (SPEC SP-01).
 
 
 async def issue_password_reset_token(db: AsyncSession, user: UserRow) -> str:
-    """Sinh token, lưu hash, thu hồi token cũ; trả token thô.
+    """Sinh token, lưu hash, thu hồi token cũ và commit; trả token thô.
 
-    API không bao giờ trả token thô cho client — hàm này chỉ được router gọi
-    nội bộ để mô phỏng "worker gửi email" (chưa có worker ở Phase 2, xem task
-    4.4) và được test integration gọi trực tiếp để lấy token cho bước confirm.
+    Worker gọi hàm này ngay trước khi gửi thư (`app/workers/email_tasks.py`);
+    mỗi lần gửi lại sinh token mới và vô hiệu token trước (SPEC SP-01). Token thô
+    chỉ tồn tại trong bộ nhớ để đưa vào nội dung thư.
     """
     await auth_repository.invalidate_prior_tokens(db, user.id)
     raw_token = secrets.token_urlsafe(32)
@@ -125,14 +148,7 @@ async def issue_password_reset_token(db: AsyncSession, user: UserRow) -> str:
         db,
         user_id=user.id,
         token_hash=hash_reset_token(raw_token),
-        expires_at=datetime.now(UTC) + _RESET_TOKEN_TTL,
-    )
-    await record_audit(
-        db,
-        actor=user,
-        action="auth.password_reset_requested",
-        entity_type="users",
-        entity_id=user.id,
+        expires_at=datetime.now(UTC) + RESET_TOKEN_TTL,
     )
     await db.commit()
     return raw_token
