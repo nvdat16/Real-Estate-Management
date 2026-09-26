@@ -317,7 +317,7 @@ Thiếu mục 6 thì coi như chưa xong: [PRD §3](PRD.md) ghi rõ ẩn nút tr
 | T-01 | `test_auth_flow.py`: đăng ký bỏ qua role client gửi, reset dùng một lần, JWT cũ bị thu hồi sau logout/reset |
 | T-02 (hồ sơ) | `test_rbac_scope.py`: môi giới chỉ thấy khách trong scope, ngoài scope trả 404 |
 | T-13 | `test_audit_logs.py`: audit đúng actor, không chứa secret, router chỉ đọc |
-| Token bị thu hồi | Sau logout/khóa (pytest) và sau đổi role (Postman) token cũ trả 401 |
+| Token bị thu hồi | Sau logout/khóa/đổi role token cũ trả 401 (pytest và Postman) |
 | Kiểm thử API | Postman collection `postman/` chạy bằng Postman CLI, lịch sử ở tab Runs và `postman/history.csv` |
 
 Sửa trong lúc kiểm thử:
@@ -335,7 +335,7 @@ Sửa trong lúc kiểm thử:
 | Quyền (3.6) | `test_listings.py`: môi giới không duyệt/từ chối được tin (403), không đọc/sửa tin của môi giới khác (404), không lập tin dưới tên người khác |
 | Xóa có phụ thuộc | `test_catalog.py`, `test_listings.py`: dự án còn căn, căn còn tin chưa đóng hoặc hợp đồng đã ký, tin gắn hợp đồng đều trả 409 `DEPENDENCY_EXISTS` |
 | Cache (3.5) | Danh mục công khai cache Redis `real_estate:cache:catalog:v1`, TTL 60 giây, xóa sau commit khi dự án đổi; Redis lỗi thì đọc thẳng DB |
-| Test | 94 test pass; coverage 91% line |
+| Test | 99 test pass; coverage 93% line |
 | Postman | Thêm thư mục "05 Danh mục và tin đăng": 71 request, 324 assertion pass (chế độ local) |
 | p95 sơ bộ (Gate 3) | `GET /public/listings` trên 640 tin công khai của seed, 20 client đồng thời, 800 request trộn bộ lọc: danh sách p95 123 ms, chi tiết p95 69 ms, chung p95 120 ms. Máy Apple M1 Pro, Docker 4 CPU/4 GB; đo không qua rate limiter (giới hạn mặc định 100 request/phút/IP sẽ chặn tải từ một máy) |
 
@@ -350,7 +350,7 @@ Quyết định và sai lệch:
 7. **Projection công khai không có thông tin môi giới.** PRD không yêu cầu hiển thị liên hệ; thêm sau nếu cần.
 8. **Coverage bật `concurrency = ["greenlet", "thread"]`**: SQLAlchemy async chạy qua greenlet, thiếu cấu hình này coverage bỏ sót dòng sau `await` và báo thấp hơn thực tế.
 9. **Sửa test flaky có từ trước** `test_token_sai_secret_bi_tu_choi`: test đổi ký tự base64url cuối của chữ ký, ký tự này chỉ mang 4 bit nên đôi khi chữ ký không đổi.
-10. **Micro ORM cho Phase 3 (ADR-011).** Repository của `projects`, `properties`, `listings` viết SQL tay qua `text()` và trả dataclass, không dùng query/unit-of-work của ORM. Đo lại sau khi chuyển: p95 chung 116 ms, p50 40 ms (trước 56 ms), throughput 392 request/giây (trước 299). Test `test_sua_bang_sql_tay_van_cap_nhat_updated_at` giữ hành vi `updated_at` mà ORM từng tự làm.
+10. **Micro ORM cho toàn bộ backend (ADR-011).** Repository của mọi module (Phase 2 và 3) viết SQL tay qua `text()` và trả dataclass; code trong `app/` không còn import model ORM, model chỉ dùng cho Alembic, test factory và seed; `conditional_update` được thay bằng `app/common/db.py::update_versioned`. Phase 4 trở đi viết theo cách này. Đo lại `/public/listings` sau khi chuyển Phase 3: p95 116 ms, p50 40 ms (trước 56 ms), throughput 392 request/giây (trước 299). Thêm test cho các đường SQL mới viết: `updated_at` sau khi sửa, đổi role thu hồi token cũ (trước đó chỉ có ở Postman), danh sách tài khoản, hồ sơ môi giới, bộ lọc audit.
 
 ### Chưa đạt theo định nghĩa "xong" ở mục 7
 
