@@ -18,11 +18,13 @@ from app.core.exceptions import permission_denied, resource_not_found
 from app.core.permissions import user_has_permission
 from app.modules.agents import repository as agents_repository
 from app.modules.customers import repository as customers_repository
-from app.modules.customers.models import Customer
-from app.modules.users.models import User
+from app.modules.customers.repository import CustomerRow
+from app.modules.users.repository import UserRow
 
 
-async def ensure_customer_scope(db: AsyncSession, actor: User, customer_id: uuid.UUID) -> Customer:
+async def ensure_customer_scope(
+    db: AsyncSession, actor: UserRow, customer_id: uuid.UUID
+) -> CustomerRow:
     record = await customers_repository.get_by_id(db, customer_id)
     if record is not None and record.user_id == actor.id:
         return record

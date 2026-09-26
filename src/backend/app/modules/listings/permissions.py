@@ -17,24 +17,24 @@ from app.core.constants import PermissionCode
 from app.core.exceptions import permission_denied, resource_not_found
 from app.core.permissions import user_has_permission
 from app.modules.agents import repository as agents_repository
-from app.modules.agents.models import Agent
+from app.modules.agents.repository import AgentRow
 from app.modules.listings.repository import ListingRow
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 @dataclass(frozen=True)
 class ListingActor:
-    user: User
+    user: UserRow
     can_manage: bool
     can_review: bool
-    agent: Agent | None
+    agent: AgentRow | None
 
     @property
     def sees_all(self) -> bool:
         return self.can_review
 
 
-async def resolve_actor(db: AsyncSession, user: User) -> ListingActor:
+async def resolve_actor(db: AsyncSession, user: UserRow) -> ListingActor:
     can_manage = await user_has_permission(db, user.id, PermissionCode.LISTING_MANAGE)
     can_review = await user_has_permission(db, user.id, PermissionCode.LISTING_APPROVE)
     if not can_manage and not can_review:

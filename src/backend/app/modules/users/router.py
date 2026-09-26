@@ -13,7 +13,7 @@ from app.core.constants import PermissionCode
 from app.core.database import get_db
 from app.dependencies import get_current_user, require_permission
 from app.modules.users import service as users_service
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 from app.modules.users.schemas import (
     CreateAgentRequest,
     LockRequest,
@@ -41,7 +41,7 @@ async def list_users(
 @router.post("", response_model=UserAdminView, status_code=201)
 async def create_agent(
     payload: CreateAgentRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserAdminView:
     return await users_service.create_agent(
@@ -58,7 +58,7 @@ async def create_agent(
 async def replace_roles(
     user_id: uuid.UUID,
     payload: ReplaceRolesRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserAdminView:
     return await users_service.replace_roles(
@@ -74,7 +74,7 @@ async def replace_roles(
 async def lock_user(
     user_id: uuid.UUID,
     payload: LockRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserAdminView:
     return await users_service.lock(
@@ -86,7 +86,7 @@ async def lock_user(
 async def unlock_user(
     user_id: uuid.UUID,
     payload: UnlockRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserAdminView:
     return await users_service.unlock(

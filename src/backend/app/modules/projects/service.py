@@ -33,7 +33,7 @@ from app.modules.projects.schemas import (
     ProjectUpdateRequest,
     ProjectView,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 CATALOG_CACHE_KEY = "catalog:v1"
@@ -61,7 +61,7 @@ async def _get_or_404(db: AsyncSession, project_id: uuid.UUID) -> ProjectRow:
     return project
 
 
-async def create(db: AsyncSession, *, actor: User, payload: ProjectCreateRequest) -> ProjectView:
+async def create(db: AsyncSession, *, actor: UserRow, payload: ProjectCreateRequest) -> ProjectView:
     _ensure_location(payload.province_code, payload.ward_code)
     try:
         async with db.begin_nested():
@@ -114,7 +114,7 @@ async def list_(
 
 
 async def update(
-    db: AsyncSession, *, actor: User, project_id: uuid.UUID, payload: ProjectUpdateRequest
+    db: AsyncSession, *, actor: UserRow, project_id: uuid.UUID, payload: ProjectUpdateRequest
 ) -> ProjectView:
     project = await _get_or_404(db, project_id)
     fields: dict[str, Any] = payload.model_dump(mode="json", exclude_unset=True)
@@ -150,7 +150,7 @@ async def update(
 
 
 async def delete(
-    db: AsyncSession, *, actor: User, project_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, actor: UserRow, project_id: uuid.UUID, expected_row_version: int
 ) -> None:
     project = await _get_or_404(db, project_id)
     if await projects_repository.has_live_properties(db, project.id):

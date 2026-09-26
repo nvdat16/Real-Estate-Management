@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.constants import PermissionCode
 from app.core.exceptions import permission_denied
 from app.core.permissions import user_has_permission
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 _CATALOG_READ_PERMISSIONS = (
@@ -22,7 +22,7 @@ _CATALOG_READ_PERMISSIONS = (
 )
 
 
-async def ensure_catalog_reader(db: AsyncSession, actor: User) -> None:
+async def ensure_catalog_reader(db: AsyncSession, actor: UserRow) -> None:
     for code in _CATALOG_READ_PERMISSIONS:
         if await user_has_permission(db, actor.id, code):
             return

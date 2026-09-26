@@ -30,11 +30,11 @@ from app.modules.audit_logs.service import record_audit
 from app.modules.customers import service as customers_service
 from app.modules.roles import repository as roles_repository
 from app.modules.users import repository as users_repository
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 from app.modules.users.schemas import UserAdminView
 
 
-def _to_view(user: User, role_codes: list[str]) -> UserAdminView:
+def _to_view(user: UserRow, role_codes: list[str]) -> UserAdminView:
     return UserAdminView(
         id=user.id,
         email=user.email,
@@ -50,7 +50,7 @@ def _to_view(user: User, role_codes: list[str]) -> UserAdminView:
 async def create_agent(
     db: AsyncSession,
     *,
-    actor: User,
+    actor: UserRow,
     email: str,
     full_name: str,
     phone: str | None,
@@ -95,7 +95,7 @@ async def list_users(db: AsyncSession, *, page_params: PageParams) -> Page[UserA
 async def replace_roles(
     db: AsyncSession,
     *,
-    actor: User,
+    actor: UserRow,
     target_id: uuid.UUID,
     role_codes: list[str],
     expected_row_version: int,
@@ -116,7 +116,7 @@ async def replace_roles(
 
     await roles_repository.replace_for_user(db, target_id, list(resolved.values()))
     ok = await users_repository.update_fields(
-        db, target_id, expected_row_version, auth_version=User.auth_version + 1
+        db, target_id, expected_row_version, bump_auth_version=True
     )
     if not ok:
         await db.rollback()
@@ -138,7 +138,7 @@ async def replace_roles(
 
 
 async def lock(
-    db: AsyncSession, *, actor: User, target_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, actor: UserRow, target_id: uuid.UUID, expected_row_version: int
 ) -> UserAdminView:
     if await users_repository.get_by_id(db, target_id) is None:
         raise resource_not_found()
@@ -148,7 +148,7 @@ async def lock(
         expected_row_version,
         status=UserStatus.LOCKED.value,
         locked_at=datetime.now(UTC),
-        auth_version=User.auth_version + 1,
+        bump_auth_version=True,
     )
     if not ok:
         raise version_conflict()
@@ -163,7 +163,7 @@ async def lock(
 
 
 async def unlock(
-    db: AsyncSession, *, actor: User, target_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, actor: UserRow, target_id: uuid.UUID, expected_row_version: int
 ) -> UserAdminView:
     if await users_repository.get_by_id(db, target_id) is None:
         raise resource_not_found()

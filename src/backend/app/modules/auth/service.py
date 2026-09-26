@@ -32,7 +32,7 @@ from app.modules.auth.schemas import UserPublic
 from app.modules.customers import service as customers_service
 from app.modules.roles import repository as roles_repository
 from app.modules.users import repository as users_repository
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 # Hash cố định để `verify_password` luôn tốn thời gian tương đương dù email có
@@ -47,7 +47,7 @@ def _normalize_email(email: str) -> str:
 
 async def register(
     db: AsyncSession, *, email: str, password: str, full_name: str, phone: str | None
-) -> User:
+) -> UserRow:
     normalized_email = _normalize_email(email)
     role_id = await roles_repository.get_id_by_code(db, RoleCode.CUSTOMER)
     if role_id is None:
@@ -95,7 +95,7 @@ async def login(db: AsyncSession, *, email: str, password: str) -> str:
     return create_access_token(user.id, user.auth_version)
 
 
-async def logout(db: AsyncSession, *, user: User) -> None:
+async def logout(db: AsyncSession, *, user: UserRow) -> None:
     await users_repository.bump_auth_version(db, user.id)
     await record_audit(db, actor=user, action="auth.logout", entity_type="users", entity_id=user.id)
     await db.commit()
@@ -112,7 +112,7 @@ async def request_password_reset(db: AsyncSession, *, email: str) -> None:
     # trả cùng message trong mọi trường hợp (SPEC SP-01).
 
 
-async def issue_password_reset_token(db: AsyncSession, user: User) -> str:
+async def issue_password_reset_token(db: AsyncSession, user: UserRow) -> str:
     """Sinh token, lưu hash, thu hồi token cũ; trả token thô.
 
     API không bao giờ trả token thô cho client — hàm này chỉ được router gọi
@@ -158,7 +158,7 @@ async def confirm_password_reset(db: AsyncSession, *, token: str, new_password: 
     await db.commit()
 
 
-async def get_me(db: AsyncSession, *, user: User) -> UserPublic:
+async def get_me(db: AsyncSession, *, user: UserRow) -> UserPublic:
     role_codes = await roles_repository.get_codes_for_user(db, user.id)
     return UserPublic(
         id=user.id,
@@ -174,7 +174,7 @@ async def get_me(db: AsyncSession, *, user: User) -> UserPublic:
 async def update_me(
     db: AsyncSession,
     *,
-    user: User,
+    user: UserRow,
     full_name: str,
     phone: str | None,
     expected_row_version: int,

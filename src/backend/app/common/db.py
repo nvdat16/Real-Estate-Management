@@ -52,6 +52,12 @@ async def scalar(db: AsyncSession, sql: str, **params: Any) -> Any:
     return await db.scalar(text(sql), params)
 
 
+async def column(db: AsyncSession, sql: str, **params: Any) -> list[Any]:
+    """Giá trị cột đầu tiên của mọi dòng, ví dụ danh sách mã role."""
+    result = await db.execute(text(sql), params)
+    return list(result.scalars())
+
+
 async def execute(db: AsyncSession, sql: str, **params: Any) -> int:
     """Chạy INSERT/UPDATE/DELETE, trả số dòng bị ảnh hưởng."""
     result = await db.execute(text(sql), params)
@@ -73,14 +79,20 @@ async def update_versioned(
     expected_row_version: int,
     fields: Mapping[str, Any],
     allowed_columns: Sequence[str],
+    increments: Sequence[str] = (),
 ) -> bool:
     """UPDATE có điều kiện `row_version` (SPEC mục 3.1) bằng SQL tay.
 
-    `True` nếu đúng 1 dòng được cập nhật; `False` nghĩa là `row_version` đã cũ
-    (bản ghi không biến mất vì các bảng này chỉ xóa mềm).
+    `increments` là các cột tăng 1 ngay trong SQL (ví dụ `auth_version` khi khóa
+    tài khoản) để không phải đọc giá trị cũ rồi ghi lại. `True` nếu đúng 1 dòng
+    được cập nhật; `False` nghĩa là `row_version` đã cũ (bản ghi không biến mất
+    vì các bảng này chỉ xóa mềm).
     """
     table_name = identifier(table, (table,))
     assignments = [f"{identifier(column, allowed_columns)} = :{column}" for column in fields]
+    assignments += [
+        f"{identifier(column, allowed_columns)} = {column} + 1" for column in increments
+    ]
     assignments += ["row_version = row_version + 1", "updated_at = now()"]
     sql = (
         f"UPDATE {table_name} SET {', '.join(assignments)} "

@@ -35,7 +35,7 @@ ignore = [
 # Repository SQL tay (ADR-011): f-string chỉ chèn hằng số và cột trong allowlist,
 # mọi giá trị người dùng đi qua tham số bind `:ten` của `text()`.
 "app/common/db.py" = ["S608"]
-"app/modules/{projects,properties,listings}/repository.py" = ["S608"]
+"app/modules/*/repository.py" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

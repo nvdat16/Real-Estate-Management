@@ -38,7 +38,7 @@ from app.core.exceptions import (
     version_conflict,
 )
 from app.modules.agents import repository as agents_repository
-from app.modules.agents.models import Agent
+from app.modules.agents.repository import AgentRow
 from app.modules.audit_logs.service import record_audit
 from app.modules.listings import repository as listings_repository
 from app.modules.listings.permissions import (
@@ -66,7 +66,7 @@ from app.modules.projects import repository as projects_repository
 from app.modules.projects.locations import is_known_location, is_known_province
 from app.modules.properties import repository as properties_repository
 from app.modules.properties.repository import PropertyRow
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 _PRICE_UNIT_FOR = {ListingType.SALE: PriceUnit.TOTAL, ListingType.RENT: PriceUnit.MONTH}
@@ -103,7 +103,7 @@ def _ensure_status(listing: ListingRow, *allowed: ListingStatus, message: str) -
         raise invalid_state(message)
 
 
-async def _ensure_agent_active(db: AsyncSession, agent_id: uuid.UUID) -> Agent:
+async def _ensure_agent_active(db: AsyncSession, agent_id: uuid.UUID) -> AgentRow:
     agent = await agents_repository.get_by_id(db, agent_id)
     if agent is None or agent.deleted_at is not None or agent.status != AgentStatus.ACTIVE:
         raise invalid_state("Môi giới phụ trách không hoạt động.")
@@ -165,7 +165,7 @@ def _transition_summary(listing: ListingRow, to: ListingStatus, **extra: Any) ->
 
 async def _resolve_owner_agent(
     db: AsyncSession, actor: ListingActor, requested_agent_id: uuid.UUID | None
-) -> Agent:
+) -> AgentRow:
     if requested_agent_id is not None and actor.sees_all:
         agent = await agents_repository.get_by_id(db, requested_agent_id)
         if agent is None or agent.deleted_at is not None:
@@ -184,7 +184,7 @@ async def _resolve_owner_agent(
     return await _ensure_agent_active(db, actor.agent.id)
 
 
-async def create(db: AsyncSession, *, user: User, payload: ListingCreateRequest) -> ListingView:
+async def create(db: AsyncSession, *, user: UserRow, payload: ListingCreateRequest) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)
     agent = await _resolve_owner_agent(db, actor, payload.agent_id)
@@ -221,7 +221,7 @@ async def create(db: AsyncSession, *, user: User, payload: ListingCreateRequest)
     return _to_view(listing)
 
 
-async def get(db: AsyncSession, *, user: User, listing_id: uuid.UUID) -> ListingView:
+async def get(db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID) -> ListingView:
     actor = await resolve_actor(db, user)
     return _to_view(await _load(db, actor, listing_id))
 
@@ -229,7 +229,7 @@ async def get(db: AsyncSession, *, user: User, listing_id: uuid.UUID) -> Listing
 async def list_(
     db: AsyncSession,
     *,
-    user: User,
+    user: UserRow,
     page_params: PageParams,
     sort: str,
     filters: ListingFilters,
@@ -257,7 +257,7 @@ async def list_(
 
 
 async def update(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, payload: ListingUpdateRequest
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, payload: ListingUpdateRequest
 ) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)
@@ -315,7 +315,7 @@ async def update(
 
 
 async def submit(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, expected_row_version: int
 ) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)
@@ -335,7 +335,7 @@ async def submit(
 
 
 async def withdraw(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, expected_row_version: int
 ) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)
@@ -353,7 +353,7 @@ async def withdraw(
 
 
 async def approve(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, expected_row_version: int
 ) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_review(actor)
@@ -381,7 +381,7 @@ async def approve(
 async def reject(
     db: AsyncSession,
     *,
-    user: User,
+    user: UserRow,
     listing_id: uuid.UUID,
     expected_row_version: int,
     reason: str,
@@ -407,7 +407,7 @@ async def reject(
 
 
 async def close(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, expected_row_version: int
 ) -> ListingView:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)
@@ -427,7 +427,7 @@ async def close(
 
 
 async def delete(
-    db: AsyncSession, *, user: User, listing_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, user: UserRow, listing_id: uuid.UUID, expected_row_version: int
 ) -> None:
     actor = await resolve_actor(db, user)
     ensure_can_manage(actor)

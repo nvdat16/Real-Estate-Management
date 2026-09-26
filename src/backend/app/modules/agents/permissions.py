@@ -10,11 +10,11 @@ from app.core.constants import PermissionCode
 from app.core.exceptions import permission_denied, resource_not_found
 from app.core.permissions import user_has_permission
 from app.modules.agents import repository as agents_repository
-from app.modules.agents.models import Agent
-from app.modules.users.models import User
+from app.modules.agents.repository import AgentRow
+from app.modules.users.repository import UserRow
 
 
-async def ensure_agent_scope(db: AsyncSession, actor: User, agent_id: uuid.UUID) -> Agent:
+async def ensure_agent_scope(db: AsyncSession, actor: UserRow, agent_id: uuid.UUID) -> AgentRow:
     record = await agents_repository.get_by_id(db, agent_id)
     if record is not None and record.user_id == actor.id:
         return record

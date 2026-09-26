@@ -18,7 +18,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.modules.customers import service as customers_service
 from app.modules.customers.schemas import CustomerUpdateRequest, CustomerView
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 @router.get("", response_model=Page[CustomerView])
 async def list_customers(
     pagination: PageParams = Depends(page_params),
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[CustomerView]:
     return await customers_service.list_(db, actor=actor, page_params=pagination)
@@ -36,7 +36,7 @@ async def list_customers(
 @router.get("/{customer_id}", response_model=CustomerView)
 async def get_customer(
     customer_id: uuid.UUID,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerView:
     return await customers_service.get(db, actor=actor, customer_id=customer_id)
@@ -46,7 +46,7 @@ async def get_customer(
 async def update_customer(
     customer_id: uuid.UUID,
     payload: CustomerUpdateRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerView:
     return await customers_service.update(

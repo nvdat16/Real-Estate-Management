@@ -30,7 +30,7 @@ from app.modules.listings.schemas import (
     PublicListingSort,
     PublicListingView,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -47,7 +47,7 @@ async def list_listings(
     q: str | None = Query(default=None, max_length=200),
     sort: ListingSort = Query(default="-created_at"),
     pagination: PageParams = Depends(page_params),
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[ListingView]:
     filters = ListingFilters(
@@ -66,7 +66,7 @@ async def list_listings(
 @router.post("", response_model=ListingView, status_code=201)
 async def create_listing(
     payload: ListingCreateRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.create(db, user=user, payload=payload)
@@ -75,7 +75,7 @@ async def create_listing(
 @router.get("/{listing_id}", response_model=ListingView)
 async def get_listing(
     listing_id: uuid.UUID,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.get(db, user=user, listing_id=listing_id)
@@ -85,7 +85,7 @@ async def get_listing(
 async def update_listing(
     listing_id: uuid.UUID,
     payload: ListingUpdateRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.update(db, user=user, listing_id=listing_id, payload=payload)
@@ -95,7 +95,7 @@ async def update_listing(
 async def delete_listing(
     listing_id: uuid.UUID,
     row_version: int = Query(),
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await listings_service.delete(
@@ -107,7 +107,7 @@ async def delete_listing(
 async def submit_listing(
     listing_id: uuid.UUID,
     payload: ListingCommandRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.submit(
@@ -119,7 +119,7 @@ async def submit_listing(
 async def withdraw_listing(
     listing_id: uuid.UUID,
     payload: ListingCommandRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.withdraw(
@@ -131,7 +131,7 @@ async def withdraw_listing(
 async def approve_listing(
     listing_id: uuid.UUID,
     payload: ListingCommandRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.approve(
@@ -143,7 +143,7 @@ async def approve_listing(
 async def reject_listing(
     listing_id: uuid.UUID,
     payload: ListingRejectRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.reject(
@@ -159,7 +159,7 @@ async def reject_listing(
 async def close_listing(
     listing_id: uuid.UUID,
     payload: ListingCommandRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ListingView:
     return await listings_service.close(

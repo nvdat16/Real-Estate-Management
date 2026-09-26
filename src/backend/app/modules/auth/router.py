@@ -23,7 +23,7 @@ from app.modules.auth.schemas import (
     TokenResponse,
     UserPublic,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -57,7 +57,7 @@ async def token(
 
 @router.post("/logout", status_code=204)
 async def logout(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    user: UserRow = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> None:
     await auth_service.logout(db, user=user)
 
@@ -82,7 +82,7 @@ async def confirm_password_reset(
 
 @me_router.get("/me", response_model=UserPublic)
 async def get_me(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    user: UserRow = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> UserPublic:
     return await auth_service.get_me(db, user=user)
 
@@ -90,7 +90,7 @@ async def get_me(
 @me_router.patch("/me", response_model=UserPublic)
 async def update_me(
     payload: MeUpdateRequest,
-    user: User = Depends(get_current_user),
+    user: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserPublic:
     return await auth_service.update_me(

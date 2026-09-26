@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user, require_permission
 from app.modules.agents import service as agents_service
 from app.modules.agents.schemas import AgentUpdateRequest, AgentView
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -36,7 +36,7 @@ async def list_agents(
 @router.get("/{agent_id}", response_model=AgentView)
 async def get_agent(
     agent_id: uuid.UUID,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AgentView:
     return await agents_service.get(db, actor=actor, agent_id=agent_id)
@@ -46,7 +46,7 @@ async def get_agent(
 async def update_agent(
     agent_id: uuid.UUID,
     payload: AgentUpdateRequest,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AgentView:
     return await agents_service.update(

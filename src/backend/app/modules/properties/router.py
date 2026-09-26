@@ -22,7 +22,7 @@ from app.modules.properties.schemas import (
     PropertyUpdateRequest,
     PropertyView,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/properties", tags=["properties"])
@@ -37,7 +37,7 @@ async def list_properties(
     q: str | None = Query(default=None, max_length=50),
     sort: PropertySort = Query(default="unit_code"),
     pagination: PageParams = Depends(page_params),
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[PropertyView]:
     await ensure_catalog_reader(db, actor)
@@ -49,7 +49,7 @@ async def list_properties(
 @router.post("", response_model=PropertyView, status_code=201)
 async def create_property(
     payload: PropertyCreateRequest,
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> PropertyView:
     return await properties_service.create(db, actor=actor, payload=payload)
@@ -58,7 +58,7 @@ async def create_property(
 @router.get("/{property_id}", response_model=PropertyView)
 async def get_property(
     property_id: uuid.UUID,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PropertyView:
     await ensure_catalog_reader(db, actor)
@@ -69,7 +69,7 @@ async def get_property(
 async def update_property(
     property_id: uuid.UUID,
     payload: PropertyUpdateRequest,
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> PropertyView:
     return await properties_service.update(
@@ -81,7 +81,7 @@ async def update_property(
 async def delete_property(
     property_id: uuid.UUID,
     row_version: int = Query(),
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await properties_service.delete(

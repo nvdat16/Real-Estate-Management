@@ -1,55 +1,115 @@
-"""Truy vấn `agents` — chủ sở hữu: module agents.
+"""Truy vấn `agents` — chủ sở hữu: module agents. SQL tay (ADR-011).
 
-Tên/email/điện thoại hiển thị lấy live từ `users` nên các hàm đọc trả về cặp
-`(Agent, User)` thay vì chỉ `Agent`.
+Tên/email/điện thoại hiển thị lấy live từ `users`, nên các hàm đọc hồ sơ trả
+`AgentProfileRow` đã join sẵn thay vì chỉ dòng `agents`.
 """
 
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import db as sql
+from app.common.utils import expect
 from app.common.utils.pagination import PageParams
-from app.common.utils.row_version import conditional_update
-from app.modules.agents.models import Agent
-from app.modules.users.models import User
 
 
-async def get_by_id(db: AsyncSession, agent_id: uuid.UUID) -> Agent | None:
-    return await db.get(Agent, agent_id)
+@dataclass(frozen=True)
+class AgentRow:
+    id: uuid.UUID
+    user_id: uuid.UUID
+    agent_code: str
+    status: str
+    row_version: int
+    deleted_at: datetime | None
 
 
-async def get_by_user_id(db: AsyncSession, user_id: uuid.UUID) -> Agent | None:
-    result = await db.execute(select(Agent).where(Agent.user_id == user_id))
-    return result.scalar_one_or_none()
+@dataclass(frozen=True)
+class AgentProfileRow:
+    id: uuid.UUID
+    agent_code: str
+    status: str
+    row_version: int
+    user_id: uuid.UUID
+    full_name: str
+    email: str
+    phone: str | None
 
 
-async def get_with_user(db: AsyncSession, agent_id: uuid.UUID) -> tuple[Agent, User] | None:
-    stmt = select(Agent, User).join(User, User.id == Agent.user_id).where(Agent.id == agent_id)
-    result = await db.execute(stmt)
-    row = result.first()
-    return (row[0], row[1]) if row else None
+_COLUMNS = "id, user_id, agent_code, status, row_version, deleted_at"
+_PROFILE_COLUMNS = """
+    a.id, a.agent_code, a.status, a.row_version,
+    u.id AS user_id, u.full_name, u.email, u.phone
+"""
+_PROFILE_FROM = "FROM agents a JOIN users u ON u.id = a.user_id"
+_UPDATABLE_COLUMNS: tuple[str, ...] = ()
 
 
-async def list_page(
-    db: AsyncSession, page_params: PageParams
-) -> tuple[list[tuple[Agent, User]], int]:
-    query = select(Agent, User).join(User, User.id == Agent.user_id)
-    total_stmt = select(func.count()).select_from(query.with_only_columns(Agent.id).subquery())
-    total = await db.scalar(total_stmt) or 0
-
-    items_stmt = (
-        query.order_by(Agent.created_at.desc(), Agent.id)
-        .offset(page_params.offset)
-        .limit(page_params.page_size)
+async def get_by_id(db: AsyncSession, agent_id: uuid.UUID) -> AgentRow | None:
+    return await sql.query_one(
+        db, AgentRow, f"SELECT {_COLUMNS} FROM agents WHERE id = :id", id=agent_id
     )
-    result = await db.execute(items_stmt)
-    return [(row[0], row[1]) for row in result.all()], total
+
+
+async def get_by_user_id(db: AsyncSession, user_id: uuid.UUID) -> AgentRow | None:
+    return await sql.query_one(
+        db, AgentRow, f"SELECT {_COLUMNS} FROM agents WHERE user_id = :user_id", user_id=user_id
+    )
+
+
+async def insert(db: AsyncSession, *, user_id: uuid.UUID, agent_code: str) -> AgentRow:
+    row = await sql.query_one(
+        db,
+        AgentRow,
+        f"""
+        INSERT INTO agents (user_id, agent_code) VALUES (:user_id, :agent_code)
+        RETURNING {_COLUMNS}
+        """,
+        user_id=user_id,
+        agent_code=agent_code,
+    )
+    return expect(row, "INSERT ... RETURNING không trả dòng nào")
+
+
+async def get_profile(db: AsyncSession, agent_id: uuid.UUID) -> AgentProfileRow | None:
+    return await sql.query_one(
+        db,
+        AgentProfileRow,
+        f"SELECT {_PROFILE_COLUMNS} {_PROFILE_FROM} WHERE a.id = :id",
+        id=agent_id,
+    )
+
+
+async def list_page(db: AsyncSession, page_params: PageParams) -> tuple[list[AgentProfileRow], int]:
+    total = await sql.scalar(db, "SELECT COUNT(*) FROM agents")
+    items = await sql.query(
+        db,
+        AgentProfileRow,
+        f"""
+        SELECT {_PROFILE_COLUMNS} {_PROFILE_FROM}
+        ORDER BY a.created_at DESC, a.id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+        limit=page_params.page_size,
+        offset=page_params.offset,
+    )
+    return items, int(total or 0)
 
 
 async def update_fields(
-    db: AsyncSession, agent_id: uuid.UUID, expected_row_version: int, **fields: object
+    db: AsyncSession, agent_id: uuid.UUID, expected_row_version: int, **fields: Any
 ) -> bool:
-    return await conditional_update(db, Agent, agent_id, expected_row_version, fields)
+    """Hiện chỉ tăng `row_version` (tên/điện thoại nằm ở `users`); vẫn qua đây để
+    PATCH hồ sơ môi giới có khóa lạc quan trên chính bảng `agents`."""
+    return await sql.update_versioned(
+        db,
+        table="agents",
+        record_id=agent_id,
+        expected_row_version=expected_row_version,
+        fields=fields,
+        allowed_columns=_UPDATABLE_COLUMNS,
+    )

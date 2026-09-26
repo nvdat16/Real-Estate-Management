@@ -17,70 +17,61 @@ from app.core.exceptions import permission_denied, version_conflict
 from app.core.permissions import user_has_permission
 from app.modules.agents import repository as agents_repository
 from app.modules.customers import repository as customers_repository
-from app.modules.customers.models import Customer
 from app.modules.customers.permissions import ensure_customer_scope
+from app.modules.customers.repository import CustomerProfileRow, CustomerRow
 from app.modules.customers.schemas import CustomerView
 from app.modules.users import repository as users_repository
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 async def has_profile(db: AsyncSession, user_id: uuid.UUID) -> bool:
     return await customers_repository.get_by_user_id(db, user_id) is not None
 
 
-async def create_customer_profile(db: AsyncSession, user_id: uuid.UUID) -> Customer:
+async def create_customer_profile(db: AsyncSession, user_id: uuid.UUID) -> CustomerRow:
     for _ in range(5):
         try:
             async with db.begin_nested():
-                customer = Customer(user_id=user_id, customer_code=generate_code("KH"))
-                db.add(customer)
-                await db.flush()
+                customer = await customers_repository.insert(
+                    db, user_id=user_id, customer_code=generate_code("KH")
+                )
         except IntegrityError:
             continue
         return customer
     raise RuntimeError("Không sinh được customer_code duy nhất sau nhiều lần thử")
 
 
-def _to_view(customer: Customer, user: User) -> CustomerView:
-    return CustomerView(
-        id=customer.id,
-        customer_code=customer.customer_code,
-        full_name=user.full_name,
-        email=user.email,
-        phone=user.phone,
-        address=customer.address,
-        row_version=customer.row_version,
-    )
+def _to_view(profile: CustomerProfileRow) -> CustomerView:
+    return CustomerView.model_validate(profile, from_attributes=True)
 
 
-async def get(db: AsyncSession, *, actor: User, customer_id: uuid.UUID) -> CustomerView:
+async def get(db: AsyncSession, *, actor: UserRow, customer_id: uuid.UUID) -> CustomerView:
     await ensure_customer_scope(db, actor, customer_id)
-    pair = expect(await customers_repository.get_with_user(db, customer_id))
-    return _to_view(*pair)
+    return _to_view(expect(await customers_repository.get_profile(db, customer_id)))
 
 
-async def list_(db: AsyncSession, *, actor: User, page_params: PageParams) -> Page[CustomerView]:
+async def list_(db: AsyncSession, *, actor: UserRow, page_params: PageParams) -> Page[CustomerView]:
     if await user_has_permission(db, actor.id, PermissionCode.USER_MANAGE):
-        pairs, total = await customers_repository.list_page(db, page_params)
+        profiles, total = await customers_repository.list_page(db, page_params)
     elif await user_has_permission(db, actor.id, PermissionCode.CUSTOMER_READ_SCOPE):
         agent = await agents_repository.get_by_user_id(db, actor.id)
         if agent is None:
-            pairs, total = [], 0
+            profiles, total = [], 0
         else:
-            pairs, total = await customers_repository.list_page(
+            profiles, total = await customers_repository.list_page(
                 db, page_params, scope_agent_id=agent.id
             )
     else:
         raise permission_denied()
 
-    items = [_to_view(customer, user) for customer, user in pairs]
+    items = [_to_view(profile) for profile in profiles]
     return Page(items=items, page=page_params.page, page_size=page_params.page_size, total=total)
 
 
 async def update(
     db: AsyncSession,
     *,
-    actor: User,
+    actor: UserRow,
     customer_id: uuid.UUID,
     full_name: str,
     phone: str | None,
@@ -98,5 +89,4 @@ async def update(
     )
     await db.commit()
 
-    pair = expect(await customers_repository.get_with_user(db, customer_id))
-    return _to_view(*pair)
+    return _to_view(expect(await customers_repository.get_profile(db, customer_id)))

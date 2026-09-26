@@ -29,7 +29,7 @@ from app.modules.properties.schemas import (
     PropertyUpdateRequest,
     PropertyView,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 _REQUIRED_FIELDS = ("area_m2", "bedrooms")
@@ -46,7 +46,9 @@ async def _get_or_404(db: AsyncSession, property_id: uuid.UUID) -> PropertyRow:
     return item
 
 
-async def create(db: AsyncSession, *, actor: User, payload: PropertyCreateRequest) -> PropertyView:
+async def create(
+    db: AsyncSession, *, actor: UserRow, payload: PropertyCreateRequest
+) -> PropertyView:
     if await projects_repository.get_active_by_id(db, payload.project_id) is None:
         raise validation_error({"project_id": str(payload.project_id), "reason": "not_found"})
 
@@ -93,7 +95,7 @@ async def list_(
 
 
 async def update(
-    db: AsyncSession, *, actor: User, property_id: uuid.UUID, payload: PropertyUpdateRequest
+    db: AsyncSession, *, actor: UserRow, property_id: uuid.UUID, payload: PropertyUpdateRequest
 ) -> PropertyView:
     item = await _get_or_404(db, property_id)
     fields: dict[str, Any] = payload.model_dump(exclude_unset=True)
@@ -123,7 +125,7 @@ async def update(
 
 
 async def delete(
-    db: AsyncSession, *, actor: User, property_id: uuid.UUID, expected_row_version: int
+    db: AsyncSession, *, actor: UserRow, property_id: uuid.UUID, expected_row_version: int
 ) -> None:
     item = await _get_or_404(db, property_id)
     if await properties_repository.has_open_listing(db, item.id):

@@ -9,19 +9,10 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.roles.models import Permission, RolePermission, UserRole
+from app.modules.roles import repository as roles_repository
 
 
 async def user_has_permission(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
-    stmt = (
-        select(UserRole.role_id)
-        .join(RolePermission, RolePermission.role_id == UserRole.role_id)
-        .join(Permission, Permission.id == RolePermission.permission_id)
-        .where(UserRole.user_id == user_id, Permission.code == code)
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    return result.first() is not None
+    return await roles_repository.user_has_permission(db, user_id, code)

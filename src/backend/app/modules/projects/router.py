@@ -24,7 +24,7 @@ from app.modules.projects.schemas import (
     ProjectUpdateRequest,
     ProjectView,
 )
-from app.modules.users.models import User
+from app.modules.users.repository import UserRow
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -41,7 +41,7 @@ async def list_projects(
     status: ProjectStatus | None = Query(default=None),
     sort: ProjectSort = Query(default="-created_at"),
     pagination: PageParams = Depends(page_params),
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Page[ProjectView]:
     await ensure_catalog_reader(db, actor)
@@ -59,7 +59,7 @@ async def list_projects(
 @router.post("", response_model=ProjectView, status_code=201)
 async def create_project(
     payload: ProjectCreateRequest,
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectView:
     return await projects_service.create(db, actor=actor, payload=payload)
@@ -68,7 +68,7 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectView)
 async def get_project(
     project_id: uuid.UUID,
-    actor: User = Depends(get_current_user),
+    actor: UserRow = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectView:
     await ensure_catalog_reader(db, actor)
@@ -79,7 +79,7 @@ async def get_project(
 async def update_project(
     project_id: uuid.UUID,
     payload: ProjectUpdateRequest,
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectView:
     return await projects_service.update(db, actor=actor, project_id=project_id, payload=payload)
@@ -89,7 +89,7 @@ async def update_project(
 async def delete_project(
     project_id: uuid.UUID,
     row_version: int = Query(),
-    actor: User = Depends(_require_manage),
+    actor: UserRow = Depends(_require_manage),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await projects_service.delete(
