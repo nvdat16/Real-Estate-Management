@@ -8,5 +8,8 @@ namespace Bds.Infrastructure.Identity.Repositories;
 public sealed class RoleRepository(IdentityContext context) : IRoleRepository
 {
     public Task<Role?> GetByNameAsync(string name, CancellationToken cancellationToken) =>
-        context.Roles.FirstOrDefaultAsync(r => r.Name == name, cancellationToken);
+        context.Roles
+            .Include(r => r.RolePermissions)
+            .ThenInclude(rp => rp.Permission)
+            .FirstOrDefaultAsync(r => r.Name == name, cancellationToken);
 }

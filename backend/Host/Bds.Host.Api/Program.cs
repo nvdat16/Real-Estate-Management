@@ -5,9 +5,12 @@ using Bds.Host.Api.Errors;
 using Bds.Presentation.Identity.Extensions;
 using Bds.Presentation.RealEstate.Extensions;
 using Bds.Presentation.Storage.Extensions;
+using Bds.Host.Api.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,8 +42,10 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ClockSkew = TimeSpan.FromSeconds(30),
         };
     });
-builder.Services.AddAuthorization();
-
+builder.Services.AddAuthorization(options => options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build());
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddBuildingBlocksApplication();
 builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddRealEstateModule(builder.Configuration);
@@ -53,14 +58,14 @@ app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 
 app.Run();
 

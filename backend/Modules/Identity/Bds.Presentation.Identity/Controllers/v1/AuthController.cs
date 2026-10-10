@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Bds.BuildingBlocks.Application.Security;
 using Bds.Model.Dto.Identity.Requests;
 using Bds.Model.Dto.Identity.Responses;
@@ -34,7 +33,7 @@ public sealed class AuthController(IMediator mediator) : ControllerBase
     [Authorize]
     public async Task<ActionResult<UserResponse>> Me(CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(User.FindFirstValue(CustomClaimTypes.UserId)!);
-        return await mediator.Send(new GetCurrentUserQuery(userId), cancellationToken);
+        var query = new GetCurrentUserQuery(User.GetUserId());
+        return await mediator.Send(query, cancellationToken);
     }
 }
