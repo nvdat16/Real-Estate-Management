@@ -27,6 +27,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
 
         var assembly = typeof(IdentityServiceCollectionExtensions).Assembly;
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
