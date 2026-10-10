@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bds.BuildingBlocks.Application\Bds.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\Bds.BuildingBlocks.Domain\Bds.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
