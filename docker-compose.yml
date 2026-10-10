@@ -46,6 +46,8 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__Default: *db-connection
+      Seed__AdminEmail: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +61,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__Default: *db-connection
       ConnectionStrings__Redis: redis:6379
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       Smtp__Host: mailpit
       Smtp__Port: "1025"
       Smtp__From: no-reply@bds.local
