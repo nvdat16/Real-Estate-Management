@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Identity\Bds.Infrastructure.Identity\Bds.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\Modules\RealEstate\Bds.Infrastructure.RealEstate\Bds.Infrastructure.RealEstate.csproj" />
+  </ItemGroup>
+
+</Project>

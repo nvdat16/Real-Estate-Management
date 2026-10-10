@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Bds.BuildingBlocks.Application\Bds.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\Bds.Presentation.Identity\Bds.Presentation.Identity.csproj" />
+    <ProjectReference Include="..\..\Modules\RealEstate\Bds.Presentation.RealEstate\Bds.Presentation.RealEstate.csproj" />
+    <ProjectReference Include="..\..\Modules\Storage\Bds.Presentation.Storage\Bds.Presentation.Storage.csproj" />
+  </ItemGroup>
+
+</Project>
