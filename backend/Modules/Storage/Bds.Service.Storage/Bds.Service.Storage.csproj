@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Bds.BuildingBlocks.Application\Bds.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\Bds.Model.Dto.Storage\Bds.Model.Dto.Storage.csproj" />
+  </ItemGroup>
+
+</Project>
