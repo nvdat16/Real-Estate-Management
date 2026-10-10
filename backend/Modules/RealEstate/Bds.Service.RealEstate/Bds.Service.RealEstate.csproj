@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bds.Infrastructure.RealEstate\Bds.Infrastructure.RealEstate.csproj" />
+    <ProjectReference Include="..\Bds.Model.Dto.RealEstate\Bds.Model.Dto.RealEstate.csproj" />
+  </ItemGroup>
+
+</Project>
