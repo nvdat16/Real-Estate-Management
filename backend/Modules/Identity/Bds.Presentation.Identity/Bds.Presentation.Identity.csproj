@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bds.Model.Dto.Identity\Bds.Model.Dto.Identity.csproj" />
+    <ProjectReference Include="..\Bds.Service.Identity\Bds.Service.Identity.csproj" />
+  </ItemGroup>
+
+</Project>

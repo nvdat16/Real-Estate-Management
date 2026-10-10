@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bds.Infrastructure.Identity\Bds.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\Bds.Model.Dto.Identity\Bds.Model.Dto.Identity.csproj" />
+  </ItemGroup>
+
+</Project>

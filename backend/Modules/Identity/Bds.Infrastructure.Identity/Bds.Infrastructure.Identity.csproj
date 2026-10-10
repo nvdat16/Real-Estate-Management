@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Bds.BuildingBlocks.Infrastructure\Bds.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\Bds.Domain.Identity\Bds.Domain.Identity.csproj" />
+  </ItemGroup>
+
+</Project>
