@@ -1,43 +1,16 @@
-# Python
-__pycache__/
-.ruff_cache/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
-
-# Virtual environment
-.venv/
-venv/
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
 
 # Environment
 .env
-src/backend/.env
-src/frontend/.env
-
-# Node
-node_modules/
-src/frontend/node_modules/
-src/frontend/dist/
-
-# IDE
-.idea/
-.vscode/
+!.env.example
 
 # OS
 .DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Uploads
-uploads/
-
-# Database
-*.db
-
-postman/
