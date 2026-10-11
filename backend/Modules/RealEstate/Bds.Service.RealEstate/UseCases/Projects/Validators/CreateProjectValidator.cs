@@ -1,0 +1,30 @@
+using Bds.Service.RealEstate.UseCases.Projects.Commands;
+using FluentValidation;
+
+namespace Bds.Service.RealEstate.UseCases.Projects.Validators;
+
+public sealed class CreateProjectValidator : AbstractValidator<CreateProjectCommand>
+{
+    public CreateProjectValidator()
+    {
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("Mã dự án không được để trống.")
+            .MaximumLength(50).WithMessage("Mã dự án tối đa 50 ký tự.")
+            .Matches("^[A-Za-z0-9-]+$").WithMessage("Mã dự án chỉ gồm chữ, số và dấu gạch ngang.");
+
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Tên dự án không được để trống.")
+            .MaximumLength(200).WithMessage("Tên dự án tối đa 200 ký tự.");
+
+        RuleFor(x => x.ProvinceId).NotEmpty().WithMessage("Vui lòng chọn tỉnh/thành.");
+        RuleFor(x => x.DistrictId).NotEmpty().WithMessage("Vui lòng chọn quận/huyện.");
+
+        RuleFor(x => x.AddressLine)
+            .NotEmpty().WithMessage("Địa chỉ không được để trống.")
+            .MaximumLength(300).WithMessage("Địa chỉ tối đa 300 ký tự.");
+
+        RuleFor(x => x.Developer)
+            .NotEmpty().WithMessage("Chủ đầu tư không được để trống.")
+            .MaximumLength(200).WithMessage("Chủ đầu tư tối đa 200 ký tự.");
+    }
+}
