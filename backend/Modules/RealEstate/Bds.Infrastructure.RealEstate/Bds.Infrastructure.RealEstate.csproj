@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Dapper" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Bds.BuildingBlocks.Infrastructure\Bds.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\Bds.Domain.RealEstate\Bds.Domain.RealEstate.csproj" />
   </ItemGroup>
