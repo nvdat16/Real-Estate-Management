@@ -3,6 +3,7 @@ using Bds.Infrastructure.Identity.Contexts;
 using Bds.Infrastructure.Identity.Security;
 using Bds.Infrastructure.Identity.Seed;
 using Bds.Infrastructure.RealEstate.Contexts;
+using Bds.Infrastructure.RealEstate.Seed;
 using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -31,3 +32,4 @@ if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPass
 }
 
 await IdentitySeeder.SeedAsync(services.GetRequiredService<IdentityContext>(), new PasswordHasher(), adminEmail, adminPassword);
+await RealEstateSeeder.SeedAsync(services.GetRequiredService<RealEstateContext>());
