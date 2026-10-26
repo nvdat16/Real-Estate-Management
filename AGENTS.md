@@ -24,8 +24,9 @@ Khung một module (RealEstate làm mẫu):
 ```
 Bds.Domain.RealEstate/            Entities/, Enums/
 Bds.Model.Dto.RealEstate/         Requests/, Responses/, Constants/
-Bds.Infrastructure.RealEstate/    Contexts/{RealEstateContext.cs, Configurations/}, Interfaces/, Repositories/,
-                                  UnitOfWorks/, Seed/, Migrations/
+Bds.Infrastructure.RealEstate/    Contexts/{RealEstateContext.cs, RealEstateConnectionFactory.cs, Configurations/},
+                                  Interfaces/, Repositories/, ReadModels/, Results/, Seed/, Migrations/
+                                  (Identity dùng EF nên có thêm UnitOfWorks/)
 Bds.Service.RealEstate/           Extensions/, Helpers/, Interfaces/, Services/,
                                   UseCases/{Feature}/{Commands/Handlers, Queries/Handlers, Validators}
 Bds.Presentation.RealEstate/      Controllers/v1/, Extensions/
@@ -53,6 +54,12 @@ Feature hiện có:
     --startup-project Migrations/Bds.Migration \
     --context RealEstateContext --output-dir Migrations
   ```
+- RealEstate truy cập dữ liệu bằng Dapper, không dùng EF lúc chạy và không có UnitOfWork:
+  - đọc qua function `realestate.fn_*` (`SELECT * FROM realestate.fn_...(...)`);
+  - ghi qua procedure `realestate.sp_*` (`CommandType.StoredProcedure`), trả mã kết quả qua `INOUT p_result`, repository đổi sang enum trong `Results/`;
+  - kiểm tra cần chạy cùng transaction với thao tác ghi (trùng mã, tồn tại, quan hệ dữ liệu) đặt trong procedure;
+  - `RealEstateContext` và Configurations chỉ dùng để sinh migration tạo bảng và chạy seed;
+  - function/procedure tạo bằng `migrationBuilder.Sql(...)` trong migration rỗng sinh bằng `dotnet ef migrations add`. Muốn sửa thì thêm migration mới với `CREATE OR REPLACE`, không sửa migration đã apply.
 - Không dùng FileHeader. Không thêm comment mô tả trên declaration. Comment giải thích chỉ viết bằng tiếng Anh.
 - Thông báo hiển thị cho người dùng viết bằng tiếng Việt.
 - Không đưa `bin/`, `obj/`, `node_modules/`, `dist/` vào source.
@@ -62,7 +69,7 @@ Feature hiện có:
 
 - Command: `CreateListingCommand.cs`, `UpdateListingCommand.cs`, `DeleteListingCommand.cs`. Query: `GetListingByIdQuery.cs`, `SearchListingsQuery.cs`.
 - Handler trong `Commands/Handlers` hoặc `Queries/Handlers`; Validator trong `Validators`.
-- Service nghiệp vụ: `I{Feature}Service.cs` trong `Bds.Service.{Module}/Interfaces/`, `{Feature}Service.cs` trong `Bds.Service.{Module}/Services/`, một service cho mỗi feature (`IListingService`, `ListingService`). Handler gọi service, service gọi repository và UnitOfWork (xem luồng trong `.planning/WORKING_RULES.md`).
+- Service nghiệp vụ: `I{Feature}Service.cs` trong `Bds.Service.{Module}/Interfaces/`, `{Feature}Service.cs` trong `Bds.Service.{Module}/Services/`, một service cho mỗi feature (`IListingService`, `ListingService`). Handler gọi service, service gọi repository và UnitOfWork (RealEstate không có UnitOfWork; xem luồng trong `.planning/WORKING_RULES.md`).
 - Mapping và business rule dùng chung đặt ở gốc `UseCases/{Feature}`, ví dụ `ListingMapping.cs`, `ListingRules.cs`.
 - DTO: `{Entity}Request.cs`, `{Entity}Response.cs`.
 - Repository: `I{Entity}Repository.cs` trong `Interfaces/`, `{Entity}Repository.cs` trong `Repositories/`.

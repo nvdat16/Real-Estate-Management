@@ -143,6 +143,85 @@ namespace Bds.Infrastructure.RealEstate.Migrations
                     b.ToTable("projects", "realestate");
                 });
 
+            modelBuilder.Entity("Bds.Domain.RealEstate.Entities.Property", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Area")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("area");
+
+                    b.Property<int>("Bedrooms")
+                        .HasColumnType("integer")
+                        .HasColumnName("bedrooms");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("direction");
+
+                    b.Property<int>("Floor")
+                        .HasColumnType("integer")
+                        .HasColumnName("floor");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_properties");
+
+                    b.HasIndex("ProjectId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_properties_project_id_code")
+                        .HasFilter("is_deleted = false");
+
+                    b.ToTable("properties", "realestate", t =>
+                        {
+                            t.HasCheckConstraint("ck_properties_area_positive", "area > 0");
+
+                            t.HasCheckConstraint("ck_properties_bedrooms_non_negative", "bedrooms >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Bds.Domain.RealEstate.Entities.Province", b =>
                 {
                     b.Property<Guid>("Id")
@@ -204,6 +283,16 @@ namespace Bds.Infrastructure.RealEstate.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_projects_provinces_province_id");
+                });
+
+            modelBuilder.Entity("Bds.Domain.RealEstate.Entities.Property", b =>
+                {
+                    b.HasOne("Bds.Domain.RealEstate.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_properties_projects_project_id");
                 });
 #pragma warning restore 612, 618
         }

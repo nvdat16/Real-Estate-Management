@@ -13,6 +13,8 @@ public sealed class RealEstateContext(DbContextOptions<RealEstateContext> option
 
     public DbSet<Project> Projects => Set<Project>();
 
+    public DbSet<Property> Properties => Set<Property>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

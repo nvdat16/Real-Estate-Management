@@ -41,22 +41,4 @@ public sealed class Project : BaseEntity, ISoftDelete
             CreatedAt = DateTime.UtcNow,
         };
     }
-
-    public void Update(string name, Guid provinceId, Guid districtId, string addressLine, string developer, ProjectStatus status)
-    {
-        Name = name.Trim();
-        ProvinceId = provinceId;
-        DistrictId = districtId;
-        AddressLine = addressLine.Trim();
-        Developer = developer.Trim();
-        Status = status;
-        UpdatedAt = DateTime.UtcNow;
-    }
-
-    public void Delete(DateTime now)
-    {
-        IsDeleted = true;
-        DeletedAt = now;
-        UpdatedAt = now;
-    }
 }
