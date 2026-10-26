@@ -2,7 +2,7 @@ using Bds.Domain.RealEstate.Enums;
 
 namespace Bds.Infrastructure.RealEstate.ReadModels;
 
-public sealed class ProjectReadModel
+public class ProjectReadModel
 {
     public Guid Id { get; init; }
 

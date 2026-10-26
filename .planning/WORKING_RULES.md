@@ -25,7 +25,7 @@ Controller → IMediator.Send(Command/Query)
 | `Services/{Feature}Service.cs` | Nghiệp vụ: lấy dữ liệu qua repository, kiểm tra quy tắc phụ thuộc dữ liệu và trạng thái, gọi phương thức của entity, lưu qua UnitOfWork, mapping sang response |
 | Gốc `UseCases/{Feature}` | Mapping và business rule dùng chung (`ListingMapping.cs`, `ListingRules.cs`), được service gọi |
 | Entity trong Domain | Quy tắc gắn với dữ liệu của chính entity (`listing.Approve(...)`, `property.Reserve()`) |
-| Repository trong Infrastructure | Truy cập dữ liệu: truy vấn, thêm, sửa, xóa đối tượng trong DbContext |
+| Repository trong Infrastructure | Truy cập dữ liệu: Identity thêm, sửa, xóa đối tượng trong DbContext; RealEstate gọi function `fn_*`/procedure `sp_*` bằng Dapper |
 | Interface + implementation kỹ thuật | Phần kỹ thuật hoặc tích hợp ngoài (`IJwtTokenGenerator`, `IPasswordHasher`, lưu file) |
 
 Mỗi feature có một service (`IListingService`/`ListingService`) với nhiều phương thức, mỗi phương thức ứng với một use case. Service có thể gọi service khác trong cùng module, không gọi sang module khác.
@@ -41,7 +41,8 @@ UpdateListingCommandValidator kiểm tra input
 
 ## UnitOfWork
 
-- Mỗi module có một UoW: `IIdentityUnitOfWork`, `IRealEstateUnitOfWork` (trong `Interfaces/` của Infrastructure), kế thừa `IUnitOfWork` và `UnitOfWork<TContext>` từ BuildingBlocks.
+- Identity có UoW `IIdentityUnitOfWork` (trong `Interfaces/` của Infrastructure), kế thừa `IUnitOfWork` và `UnitOfWork<TContext>` từ BuildingBlocks. Các quy tắc UoW bên dưới áp dụng cho Identity.
+- RealEstate không dùng UoW: mỗi lần gọi procedure `sp_*` là một transaction. Nghiệp vụ cần nhiều thao tác ghi cùng lúc phải viết trong một procedure, dùng `SELECT ... FOR UPDATE` khi cần khóa dòng.
 - Repository chỉ thêm, sửa, xóa đối tượng trong DbContext, không gọi `SaveChanges`.
 - Mỗi phương thức ghi dữ liệu của service gọi `SaveChangesAsync` đúng một lần ở cuối để mọi thay đổi nằm trong một transaction. Khi service gọi service khác, chỉ phương thức ngoài cùng gọi `SaveChangesAsync`.
 - Phương thức đọc của service không dùng UoW; repository nên đọc với `AsNoTracking`.
@@ -49,7 +50,7 @@ UpdateListingCommandValidator kiểm tra input
 
 ## Đăng ký DI
 
-- `Bds.Service.{Module}/Extensions`: đăng ký DbContext, UoW, repository, service (`services.AddScoped<IListingService, ListingService>()`), MediatR handler và validator của module.
+- `Bds.Service.{Module}/Extensions`: đăng ký DbContext và UoW (RealEstate: `IRealEstateConnectionFactory`), repository, service (`services.AddScoped<IListingService, ListingService>()`), MediatR handler và validator của module.
 - `Bds.Presentation.{Module}/Extensions`: `Add{Module}Module` thêm controller của module và gọi đăng ký của Service.
 - `ValidationBehavior` chỉ đăng ký một lần ở Host qua `AddBuildingBlocksApplication()`.
 

@@ -1,4 +1,5 @@
 using Bds.Domain.RealEstate.Enums;
+using Bds.Service.RealEstate.Helpers;
 using Bds.Service.RealEstate.UseCases.Projects.Queries;
 using FluentValidation;
 
@@ -14,7 +15,7 @@ public sealed class SearchProjectsValidator : AbstractValidator<SearchProjectsQu
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithMessage("Số dòng mỗi trang phải từ 1 đến 100.");
 
         RuleFor(x => x.Status)
-            .Must(s => Enum.TryParse<ProjectStatus>(s, ignoreCase: true, out _))
+            .Must(EnumNames.IsDefinedName<ProjectStatus>)
             .WithMessage("Trạng thái phải là Active hoặc Inactive.")
             .When(x => x.Status is not null);
 
