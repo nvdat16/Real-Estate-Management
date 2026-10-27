@@ -13,6 +13,10 @@ public static class IdentitySeeder
     [
         (Permissions.UsersManage, "Quản lý tài khoản", "Tài khoản"),
         (Permissions.ProjectsManage, "Quản lý dự án, căn hộ", "Dự án"),
+        (Permissions.CustomersManage, "Xem hồ sơ khách hàng", "Khách hàng"),
+        (Permissions.AgentsManage, "Xem hồ sơ môi giới", "Môi giới"),
+        (Permissions.ProfileCustomer, "Cập nhật hồ sơ khách hàng của mình", "Hồ sơ"),
+        (Permissions.ProfileAgent, "Cập nhật hồ sơ môi giới của mình", "Hồ sơ"),
         (Permissions.ListingsCreate, "Tạo và sửa tin đăng của mình", "Tin đăng"),
         (Permissions.ListingsApprove, "Duyệt tin đăng", "Tin đăng"),
         (Permissions.KycSubmit, "Gửi hồ sơ KYC", "KYC"),
@@ -28,9 +32,16 @@ public static class IdentitySeeder
 
     private static readonly Dictionary<string, string[]> PermissionsByRole = new()
     {
-        [RoleNames.Admin] = [.. PermissionCatalog.Select(p => p.Code)],
+        // Admin gets everything except the self-profile permissions, which belong to customers and agents.
+        [RoleNames.Admin] =
+        [
+            .. PermissionCatalog
+                .Select(p => p.Code)
+                .Except([Permissions.ProfileCustomer, Permissions.ProfileAgent]),
+        ],
         [RoleNames.Agent] =
         [
+            Permissions.ProfileAgent,
             Permissions.ListingsCreate,
             Permissions.ContractsCreate,
             Permissions.CommissionsReadOwn,
@@ -38,6 +49,7 @@ public static class IdentitySeeder
         ],
         [RoleNames.Customer] =
         [
+            Permissions.ProfileCustomer,
             Permissions.KycSubmit,
             Permissions.ContractsSign,
         ],

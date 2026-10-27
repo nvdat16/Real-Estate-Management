@@ -21,9 +21,13 @@ public static class RealEstateServiceCollectionExtensions
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<ILocationRepository, LocationRepository>();
         services.AddScoped<IPropertyRepository, PropertyRepository>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IAgentRepository, AgentRepository>();
         services.AddScoped<ILocationService, LocationService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IPropertyService, PropertyService>();
+        services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IAgentService, AgentService>();
 
         var assembly = typeof(RealEstateServiceCollectionExtensions).Assembly;
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));

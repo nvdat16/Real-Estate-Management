@@ -4,6 +4,10 @@ public static class Permissions
 {
     public const string UsersManage = "users.manage";
     public const string ProjectsManage = "projects.manage";
+    public const string CustomersManage = "customers.manage";
+    public const string AgentsManage = "agents.manage";
+    public const string ProfileCustomer = "profile.customer";
+    public const string ProfileAgent = "profile.agent";
     public const string ListingsCreate = "listings.create";
     public const string ListingsApprove = "listings.approve";
     public const string KycSubmit = "kyc.submit";

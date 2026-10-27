@@ -15,6 +15,10 @@ public sealed class RealEstateContext(DbContextOptions<RealEstateContext> option
 
     public DbSet<Property> Properties => Set<Property>();
 
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<Agent> Agents => Set<Agent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
