@@ -1,3 +1,4 @@
+using Bds.BuildingBlocks.Application.Abstractions;
 using Bds.BuildingBlocks.Application.Models;
 using Bds.Model.Dto.RealEstate.Responses;
 using MediatR;
@@ -12,7 +13,4 @@ public sealed record SearchPropertiesQuery(
     decimal? MinArea,
     decimal? MaxArea,
     int? Bedrooms,
-    string? SortBy,
-    bool Descending,
-    int Page,
-    int PageSize) : IRequest<PagedResult<PropertyResponse>>;
+    PageOptions Paging) : IRequest<PagedResult<PropertyResponse>>, IPagedQuery;

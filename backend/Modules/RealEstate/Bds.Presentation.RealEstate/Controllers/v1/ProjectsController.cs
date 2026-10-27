@@ -19,9 +19,8 @@ public sealed class ProjectsController(IMediator mediator) : ControllerBase
         [FromQuery] SearchProjectsRequest request,
         CancellationToken cancellationToken)
     {
-        var query = new SearchProjectsQuery(
-            request.Keyword, request.ProvinceId, request.DistrictId, request.Status,
-            request.SortBy, request.Descending, request.Page, request.PageSize);
+        var paging = new PageOptions(request.Page, request.PageSize, request.SortBy, request.Descending);
+        var query = new SearchProjectsQuery(request.Keyword, request.ProvinceId, request.DistrictId, request.Status, paging);
         return await mediator.Send(query, cancellationToken);
     }
 

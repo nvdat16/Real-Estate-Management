@@ -61,13 +61,10 @@ public sealed class PropertyService(IPropertyRepository propertyRepository) : IP
             query.MinArea,
             query.MaxArea,
             query.Bedrooms,
-            query.SortBy,
-            query.Descending,
-            query.Page,
-            query.PageSize);
+            query.Paging);
 
         var (items, totalCount) = await propertyRepository.SearchAsync(filter, cancellationToken);
         return new PagedResult<PropertyResponse>(
-            items.Select(PropertyMapping.ToResponse).ToList(), query.Page, query.PageSize, totalCount);
+            items.Select(PropertyMapping.ToResponse).ToList(), query.Paging.Page, query.Paging.PageSize, totalCount);
     }
 }

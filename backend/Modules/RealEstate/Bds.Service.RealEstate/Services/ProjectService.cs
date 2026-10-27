@@ -60,10 +60,10 @@ public sealed class ProjectService(IProjectRepository projectRepository) : IProj
     {
         var status = query.Status is null ? (ProjectStatus?)null : Enum.Parse<ProjectStatus>(query.Status, ignoreCase: true);
         var filter = new ProjectFilter(
-            query.Keyword, query.ProvinceId, query.DistrictId, status, query.SortBy, query.Descending, query.Page, query.PageSize);
+            query.Keyword, query.ProvinceId, query.DistrictId, status, query.Paging);
 
         var (items, totalCount) = await projectRepository.SearchAsync(filter, cancellationToken);
         return new PagedResult<ProjectResponse>(
-            items.Select(ProjectMapping.ToResponse).ToList(), query.Page, query.PageSize, totalCount);
+            items.Select(ProjectMapping.ToResponse).ToList(), query.Paging.Page, query.Paging.PageSize, totalCount);
     }
 }

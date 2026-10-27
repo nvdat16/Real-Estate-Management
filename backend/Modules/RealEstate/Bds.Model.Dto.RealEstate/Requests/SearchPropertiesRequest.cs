@@ -1,6 +1,6 @@
 namespace Bds.Model.Dto.RealEstate.Requests;
 
-public sealed class SearchPropertiesRequest
+public sealed class SearchPropertiesRequest : PagedRequest
 {
     public string? Keyword { get; init; }
 
@@ -15,12 +15,4 @@ public sealed class SearchPropertiesRequest
     public decimal? MaxArea { get; init; }
 
     public int? Bedrooms { get; init; }
-
-    public string? SortBy { get; init; }
-
-    public bool Descending { get; init; } = true;
-
-    public int Page { get; init; } = 1;
-
-    public int PageSize { get; init; } = 20;
 }

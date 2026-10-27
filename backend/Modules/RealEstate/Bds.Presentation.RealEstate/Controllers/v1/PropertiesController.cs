@@ -19,9 +19,10 @@ public sealed class PropertiesController(IMediator mediator) : ControllerBase
         [FromQuery] SearchPropertiesRequest request,
         CancellationToken cancellationToken)
     {
+        var paging = new PageOptions(request.Page, request.PageSize, request.SortBy, request.Descending);
         var query = new SearchPropertiesQuery(
             request.Keyword, request.ProjectId, request.Status, request.Direction, request.MinArea, request.MaxArea,
-            request.Bedrooms, request.SortBy, request.Descending, request.Page, request.PageSize);
+            request.Bedrooms, paging);
         return await mediator.Send(query, cancellationToken);
     }
 

@@ -1,3 +1,4 @@
+using Bds.BuildingBlocks.Application.Abstractions;
 using Bds.BuildingBlocks.Application.Models;
 using Bds.Model.Dto.RealEstate.Responses;
 using MediatR;
@@ -9,7 +10,4 @@ public sealed record SearchProjectsQuery(
     Guid? ProvinceId,
     Guid? DistrictId,
     string? Status,
-    string? SortBy,
-    bool Descending,
-    int Page,
-    int PageSize) : IRequest<PagedResult<ProjectResponse>>;
+    PageOptions Paging) : IRequest<PagedResult<ProjectResponse>>, IPagedQuery;

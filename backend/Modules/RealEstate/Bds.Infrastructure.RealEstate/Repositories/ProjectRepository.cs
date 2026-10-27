@@ -34,10 +34,10 @@ public sealed class ProjectRepository(IRealEstateConnectionFactory connectionFac
                 filter.ProvinceId,
                 filter.DistrictId,
                 Status = filter.Status?.ToString(),
-                filter.SortBy,
-                filter.Descending,
-                Limit = filter.PageSize,
-                Offset = (filter.Page - 1) * filter.PageSize,
+                filter.Paging.SortBy,
+                filter.Paging.Descending,
+                Limit = filter.Paging.PageSize,
+                filter.Paging.Offset,
             },
             cancellationToken: cancellationToken))).AsList();
 

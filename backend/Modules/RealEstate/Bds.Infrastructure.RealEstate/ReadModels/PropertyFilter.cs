@@ -1,3 +1,4 @@
+using Bds.BuildingBlocks.Application.Models;
 using Bds.Domain.RealEstate.Enums;
 
 namespace Bds.Infrastructure.RealEstate.ReadModels;
@@ -10,7 +11,4 @@ public sealed record PropertyFilter(
     decimal? MinArea,
     decimal? MaxArea,
     int? Bedrooms,
-    string? SortBy,
-    bool Descending,
-    int Page,
-    int PageSize);
+    PageOptions Paging);
