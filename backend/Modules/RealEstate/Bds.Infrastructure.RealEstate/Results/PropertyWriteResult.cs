@@ -9,4 +9,5 @@ public enum PropertyWriteResult
     ProjectInactive = 3,
     ProjectNotFound = 4,
     NotAvailable = 5,
+    HasActiveListing = 6,
 }

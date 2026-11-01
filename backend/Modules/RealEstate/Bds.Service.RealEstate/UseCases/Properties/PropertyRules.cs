@@ -23,6 +23,8 @@ public static class PropertyRules
                 throw AppException.NotFound("Không tìm thấy dự án.");
             case PropertyWriteResult.NotAvailable:
                 throw AppException.BusinessRule("Chỉ xóa được căn hộ đang còn trống.");
+            case PropertyWriteResult.HasActiveListing:
+                throw AppException.BusinessRule("Không thể xóa căn hộ đang có tin chờ duyệt hoặc đã duyệt.");
             default:
                 throw new InvalidOperationException($"Unknown property write result: {result}.");
         }

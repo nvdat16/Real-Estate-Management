@@ -1,0 +1,28 @@
+namespace Bds.Model.Dto.RealEstate.Responses;
+
+public sealed record ListingResponse(
+    Guid Id,
+    string Type,
+    decimal Price,
+    string Title,
+    string Description,
+    IReadOnlyList<string> ImageUrls,
+    string Status,
+    string? RejectionReason,
+    DateTime? SubmittedAt,
+    DateTime? ReviewedAt,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    Guid PropertyId,
+    string PropertyCode,
+    decimal Area,
+    int Floor,
+    int Bedrooms,
+    string Direction,
+    Guid ProjectId,
+    string ProjectName,
+    string ProvinceName,
+    string DistrictName,
+    Guid AgentId,
+    string AgentName,
+    string AgentPhoneNumber);
